@@ -64,6 +64,7 @@ impl<'a> Tiling<'a> {
             }
             adjacency = match adjacency.1.get(*edge) {
                 Some(neighbor) => {
+                    println!("{}", n);
                     n = neighbor.0;
                     match self.get(n) {
                         Ok(adj) => adj,
