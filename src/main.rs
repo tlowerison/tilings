@@ -10,30 +10,35 @@ use std::{
 // or as an input to some transform.
 struct Coord(f64, f64);
 
-struct Tile {
-    degree: usize,
-}
-
 enum Transform {
     Rotation(f64),
     Reflection(f64),
     None,
 }
 
-// Node in the tiling graph, has sub-labels tile and transform.
+// Node in the tiling graph, has sub-labels shape and transform.
 struct Node<'a> {
-    tile: &'a Tile,
-    transform: &'a Transform,
+    name: &'a str,
+    shape: usize,
+    transform: Transform,
 }
 
-// Adjacency is a node and its neighbors.
+// Adjacencies is a node and its neighbors.
 // The tuple (usize, usize) represents (neighbor node index, neighbor node's matching edge index).
-struct Adjacency<'a>(Node<'a>, &'a[(usize, usize)]);
+struct Adjacencies<'a>(Node<'a>, &'a[(usize, usize)]);
 
-// Tiling is an adjacency list of nodes.
+// Tiling is an adjacencies list of nodes.
 struct Tiling<'a> {
     name: &'a str,
-    graph: &'a[Adjacency<'a>],
+    // shapes is a list of shape degrees (i.e. for each shape, the number of edges it has)
+    // - By specifying only the shape degree instead of the actual shape, we decouple the
+    //   tiling from the actual shapes used in its implementation, as long as they match
+    //   the specified edge requirements.
+    // - It's ok and expected to have duplicate values in shapes, for example, if a tiling
+    //   expects to use a square and a rhombus in topologically different scenarios, they
+    //   should each be specified separately in shapes as 4.
+    shapes: &'a[usize],
+    graph: &'a[Adjacencies<'a>],
 }
 
 // Path is a traversal through a graph.
@@ -43,7 +48,7 @@ struct Tiling<'a> {
 struct Path<'a>(usize, &'a[usize]);
 
 impl<'a> Tiling<'a> {
-    fn get(&self, n: usize) -> Result<&Adjacency, String> {
+    fn get(&self, n: usize) -> Result<&Adjacencies, String> {
         match self.graph.get(n) {
             Some(a) => Ok(a),
             None => Err(format!("missing node: {}", n)),
@@ -52,19 +57,19 @@ impl<'a> Tiling<'a> {
 
     fn traverse(&self, path: &Path) -> Result<usize, String> {
         let mut n = path.0;
-        let mut adjacency = match self.get(path.0) {
+        let mut adjacencies = match self.get(path.0) {
             Ok(a) => a,
             Err(_) => {
                 return Err(format!("invalid starting node in path: {}", path.0));
             },
         };
         for edge in path.1.iter() {
-            if *edge >= adjacency.1.len() {
+            if *edge >= adjacencies.1.len() {
                 return Err(format!("invalid edge {} from node {}", edge, n))
             }
-            adjacency = match adjacency.1.get(*edge) {
+            adjacencies = match adjacencies.1.get(*edge) {
                 Some(neighbor) => {
-                    println!("{}", n);
+                    println!("{}", adjacencies.0.name);
                     n = neighbor.0;
                     match self.get(n) {
                         Ok(adj) => adj,
@@ -78,87 +83,354 @@ impl<'a> Tiling<'a> {
     }
 }
 
-const SQUARE: Tile = Tile { degree: 4 };
-const HEXAGON: Tile = Tile { degree: 6 };
-const OCTAGON: Tile = Tile { degree: 8 };
-const DODECAGON: Tile = Tile { degree: 12 };
-
 const TILINGS: &'static [Tiling] = &[
-    Tiling{
-        name: "4444",
+    Tiling {
+        name: "333",
+        shapes: &[3],
         graph: &[
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &SQUARE,
-                    transform: &Transform::None,
+                    name: "upward triangle",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(1,1),(1,2),(1,0)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "downward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(0,2),(0,0),(0,1)],
+            ),
+        ],
+    },
+    Tiling {
+        name: "4444",
+        shapes: &[4],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "square",
+                    shape: 0,
+                    transform: Transform::None,
                 },
                 &[(0,2),(0,3),(0,0),(0,1)],
             ),
         ],
     },
-    Tiling{
-        name: "488",
+    Tiling {
+        name: "666",
+        shapes: &[6],
         graph: &[
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &SQUARE,
-                    transform: &Transform::None,
+                    name: "hexagon",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(0,3),(0,4),(0,5),(0,0),(0,1),(0,2)],
+            ),
+        ],
+    },
+    Tiling {
+        name: "488",
+        shapes: &[4, 8],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "square",
+                    shape: 0,
+                    transform: Transform::None,
                 },
                 &[(1,4),(1,6),(1,0),(1,2)],
             ),
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &SQUARE,
-                    transform: &Transform::None,
+                    name: "octagon",
+                    shape: 1,
+                    transform: Transform::None,
                 },
                 &[(0,2),(1,5),(0,3),(1,7),(0,0),(1,1),(0,1),(1,3)],
             ),
         ],
     },
-    Tiling{
+    Tiling {
+        // https://www.mi.sanu.ac.rs/vismath/crowe/cr3.htm - Figure 1
         name: "4612",
+        shapes: &[4,6,12],
         graph: &[
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &SQUARE,
-                    transform: &Transform::None,
+                    name: "bottom square",
+                    shape: 0,
+                    transform: Transform::None,
                 },
-                &[(5,6),(4,4),(5,0),(3,1)],
+                &[(5,6),(3,4),(5,0),(4,4)],
             ),
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &SQUARE,
-                    transform: &Transform::Rotation(60 as f64),
+                    name: "top-right square",
+                    shape: 0,
+                    transform: Transform::Rotation(120 as f64),
                 },
-                &[(3,3),(5,10),(4,0),(5,4)],
+                &[(5,10),(3,0),(5,4),(4,0)],
             ),
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &SQUARE,
-                    transform: &Transform::Rotation(120 as f64),
+                    name: "top-left square",
+                    shape: 0,
+                    transform: Transform::Rotation(240 as f64),
                 },
-                &[(5,8),(3,5),(5,2),(4,2)],
+                &[(5,2),(3,2),(5,8),(4,2)],
             ),
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &HEXAGON,
-                    transform: &Transform::None,
+                    name: "southward hexagon",
+                    shape: 1,
+                    transform: Transform::None,
                 },
-                &[(5,7),(0,3),(5,11),(1,0),(5,3),(2,1)],
+                &[(1,1),(5,9),(2,1),(5,1),(0,1),(5,5)],
             ),
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &HEXAGON,
-                    transform: &Transform::None,
+                    name: "northward hexagon",
+                    shape: 1,
+                    transform: Transform::Rotation(180 as f64),
                 },
-                &[(1,2),(5,9),(2,3),(5,1),(0,1),(5,5)],
+                &[(1,3),(5,3),(2,3),(5,7),(0,3),(5,11)],
             ),
-            Adjacency(
+            Adjacencies(
                 Node {
-                    tile: &DODECAGON,
-                    transform: &Transform::None,
+                    name: "dodecagon",
+                    shape: 2,
+                    transform: Transform::None,
                 },
-                &[(0,2),(4,3),(2,2),(3,4),(1,3),(4,5),(0,0),(3,0),(2,0),(4,1),(1,2),(3,2)],
+                &[(0,2),(3,3),(2,0),(4,1),(1,2),(3,5),(0,0),(4,3),(2,2),(3,1),(1,0),(4,5)],
+            ),
+        ],
+    },
+    Tiling {
+        name: "31212",
+        shapes: &[3,12],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "upward triangle",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(2,7),(2,11),(2,3)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "downward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(2,9),(2,1),(2,5)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "dodecagon",
+                    shape: 1,
+                    transform: Transform::None,
+                },
+                &[(2,6),(1,1),(2,8),(0,2),(2,10),(1,2),(2,0),(0,0),(2,2),(1,0),(2,4),(0,1)],
+            ),
+        ],
+    },
+    Tiling {
+        name: "3636",
+        shapes: &[3,6],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "upward triangle",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(2,3),(2,5),(2,1)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "downward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(2,4),(2,0),(2,2)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "hexagon",
+                    shape: 1,
+                    transform: Transform::None,
+                },
+                &[(1,1),(0,2),(1,2),(0,0),(1,0),(0,1)],
+            ),
+        ],
+    },
+    Tiling {
+        // https://www.mi.sanu.ac.rs/vismath/crowe/cr3.htm - Figure 5
+        name: "33434",
+        shapes: &[3,4],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "upward triangle",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(5,2),(2,1),(4,1)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "leftward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(90 as f64),
+                },
+                &[(5,3),(3,1),(4,2)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "downward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(5,0),(0,1),(4,3)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "rightward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(270 as f64),
+                },
+                &[(5,1),(1,1),(4,0)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "xy-aligned square",
+                    shape: 1,
+                    transform: Transform::None,
+                },
+                &[(3,2),(0,2),(1,2),(2,2)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "rotated square",
+                    shape: 1,
+                    transform: Transform::Rotation(30 as f64),
+                },
+                &[(2,0),(3,0),(0,0),(1,0)],
+            ),
+        ],
+    },
+    Tiling {
+        name: "33344",
+        shapes: &[3,4],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "upward triangle",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(1,0),(1,1),(2,1)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "downward triangle",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(0,0),(0,1),(2,3)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "square",
+                    shape: 1,
+                    transform: Transform::None,
+                },
+                &[(2,2),(0,2),(2,0),(1,2)],
+            ),
+        ],
+    },
+    Tiling {
+        name: "33336",
+        shapes: &[3,6],
+        graph: &[
+            Adjacencies(
+                Node {
+                    name: "northward triangle on hexagon",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(3,0),(7,1),(8,1)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "north-westward triangle on hexagon",
+                    shape: 0,
+                    transform: Transform::Rotation(60 as f64),
+                },
+                &[(4,0),(6,0),(8,2)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "south-westward triangle on hexagon",
+                    shape: 0,
+                    transform: Transform::Rotation(120 as f64),
+                },
+                &[(5,0),(7,2),(8,3)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "southward triangle on hexagon",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(0,0),(6,1),(8,4)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "south-eastward triangle on hexagon",
+                    shape: 0,
+                    transform: Transform::Rotation(240 as f64),
+                },
+                &[(1,0),(7,0),(8,5)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "north-eastward triangle on hexagon",
+                    shape: 0,
+                    transform: Transform::Rotation(300 as f64),
+                },
+                &[(2,0),(6,2),(8,0)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "northward triangle in triangles",
+                    shape: 0,
+                    transform: Transform::None,
+                },
+                &[(1,1),(3,1),(5,1)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "southward triangle in triangles",
+                    shape: 0,
+                    transform: Transform::Rotation(180 as f64),
+                },
+                &[(4,1),(0,1),(2,1)],
+            ),
+            Adjacencies(
+                Node {
+                    name: "hexagon",
+                    shape: 1,
+                    transform: Transform::None,
+                },
+                &[(5,2),(0,2),(1,2),(2,2),(3,2),(4,2)],
             ),
         ],
     },
@@ -184,7 +456,7 @@ fn main() {
     let path = Path(start, &path[1..]);
 
     match tiling.traverse(&path) {
-        Ok(n) => println!("{}", n),
+        Ok(n) => println!("{}", tiling.graph[n].0.name),
         Err(e) => panic!("{}", e),
     }
 }
@@ -202,4 +474,65 @@ fn split_words<T>(s: &String) -> Vec<T> where T: FromStr {
         Ok(number) => number,
         Err(_) => panic!("could not parse {}", x),
     }).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tiling_shapes_match() -> Result<(), String> {
+        for tiling in TILINGS.into_iter() {
+            for (i, adjacencies) in tiling.graph.into_iter().enumerate() {
+                if adjacencies.0.shape >= tiling.shapes.len() {
+                    return Err(format!(
+                        "tiling {}: node {}: shape {} is out of range",
+                        tiling.name, i, adjacencies.0.shape,
+                    ))
+                }
+                if adjacencies.1.len() != tiling.shapes[adjacencies.0.shape] {
+                    return Err(format!(
+                        "tiling {}: node {}: expected {} adjacencies but found {}",
+                        tiling.name, i, tiling.shapes[adjacencies.0.shape], adjacencies.1.len(),
+                    ))
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn tiling_edges_match() -> Result<(), String> {
+        for tiling in TILINGS.into_iter() {
+            for (i, adjacencies) in tiling.graph.into_iter().enumerate() {
+                for (j, adjacency) in adjacencies.1.into_iter().enumerate() {
+                    if adjacency.0 >= tiling.graph.len() {
+                        return Err(format!(
+                            "tiling {}: node {}: adjacency {}: node {} is out of range",
+                            tiling.name, i, j, adjacency.0,
+                        ))
+                    }
+                    if adjacency.1 >= tiling.graph[adjacency.0].1.len() {
+                        return Err(format!(
+                            "tiling {}: node {}: adjacency {}: edge {} is out of range",
+                            tiling.name, i, j, adjacency.1,
+                        ))
+                    }
+                    if tiling.graph[adjacency.0].1[adjacency.1].0 != i {
+                        return Err(format!(
+                            "tiling {}: node {}: adjacency {}: expected this node to be node-{}'s edge {}'s neighbor, found {}",
+                            tiling.name, i, j, adjacency.0, adjacency.1, tiling.graph[adjacency.0].1[adjacency.1].0,
+                        ))
+                    }
+                    if tiling.graph[adjacency.0].1[adjacency.1].1 != j {
+                        return Err(format!(
+                            "tiling {}: node {}: adjacency {}: expected this adjacency to be node-{}'s edge {}'s neighbor edge, found {}",
+                            tiling.name, i, j, adjacency.0, adjacency.1, tiling.graph[adjacency.0].1[adjacency.1].1,
+                        ))
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
