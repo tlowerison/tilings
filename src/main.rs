@@ -1,3 +1,5 @@
+mod common;
+
 fn main() {
-    
+
 }
