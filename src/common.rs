@@ -1,103 +1,211 @@
 use core::fmt;
 use std::{
     f64::consts::TAU,
-    ops::Mul,
+    iter,
+    ops::{Add,Sub},
 };
 
-pub struct Coord(pub(crate) f64, pub(crate) f64);
+// TAU in degrees
+pub const TAUD: f64 = 360.;
+pub const IDENTITY_MATRIX: [[f64; 2]; 2] = [[1.,0.],[0.,1.]];
+pub const IDENTITY_VECTOR: [f64; 2] = [0.,0.];
+pub const IDENTITY_AFFINE: Affine = Affine(IDENTITY_MATRIX, IDENTITY_VECTOR);
+pub const ORIGIN: Point = Point(0., 0.);
 
-pub struct Transform(pub(crate) [[f64; 2]; 2], pub(crate) [f64; 2]); // (transform matrix, translation vector)
+pub struct Point(pub(crate) f64, pub(crate) f64);
+
+impl Point {
+    pub fn dot(&self, other: &Point) -> f64 {
+        self.0 * other.0 + self.1 * other.1
+    }
+
+    pub fn norm(&self) -> f64 {
+        (self.0.powi(2) + self.1.powi(2)).sqrt()
+    }
+}
+
+impl Add for &Point {
+    type Output = Point;
+    fn add(self, other: &Point) -> Self::Output {
+        Point(self.0 + other.0, self.1 + other.1)
+    }
+}
+
+impl Clone for Point {
+    fn clone(&self) -> Self {
+        Point(self.0, self.1)
+    }
+}
+
+impl Copy for Point {}
+
+impl Sub for &Point {
+    type Output = Point;
+    fn sub(self, other: &Point) -> Self::Output {
+        Point(self.0 - other.0, self.1 - other.1)
+    }
+}
+
+pub trait Transform {
+    fn as_affine(&self) -> Affine;
+}
+
+pub trait Transformable<'a> {
+    fn transform<T: Transform>(&self, transform: &'a T) -> Self;
+}
+
+pub trait DelayedTransformable<'a> {
+    type Item;
+    fn add<T: Transform>(&mut self, transform: &'a T) -> &Self;
+    fn reduce(&self) -> Self::Item;
+}
+
+pub struct Affine(pub(crate) [[f64; 2]; 2], pub(crate) [f64; 2]); // (affine matrix, translation vector)
+
+impl Affine {
+    fn mul_0(lhs: &Affine, rhs: &Affine, i: usize, j: usize) -> f64 {
+        lhs.0[i][0] * rhs.0[0][j] + lhs.0[i][1] * rhs.0[1][j]
+    }
+
+    fn mul_1(lhs: &Affine, rhs: &Affine, i: usize) -> f64 {
+        lhs.0[i][0] * rhs.1[0] + lhs.0[i][1] * rhs.1[1] + lhs.1[i]
+    }
+}
+
+impl Transform for Affine {
+    fn as_affine(&self) -> Affine {
+        *self
+    }
+}
+
+impl Copy for Affine {}
+
+impl Clone for Affine {
+    fn clone(&self) -> Affine {
+        Affine(
+            [[self.0[0][0], self.0[1][0]], [self.0[0][1], self.0[1][1]]],
+            [self.1[0], self.1[1]],
+        )
+    }
+}
+
+impl<'a> Transformable<'a> for Affine {
+    fn transform<T: Transform>(&self, transform: &'a T) -> Self {
+        let lhs = &transform.as_affine();
+        let rhs = self;
+        Affine(
+            [
+                [Affine::mul_0(lhs, rhs, 0, 0), Affine::mul_0(lhs, rhs, 0, 1)],
+                [Affine::mul_0(lhs, rhs, 1, 0), Affine::mul_0(lhs, rhs, 1, 1)],
+            ],
+            [
+                Affine::mul_1(lhs, rhs, 0),
+                Affine::mul_1(lhs, rhs, 1),
+            ],
+        )
+    }
+}
+
+impl<'a> Transformable<'a> for Point {
+    fn transform<T: Transform>(&self, transform: &'a T) -> Self {
+        let lhs = transform.as_affine();
+        let rhs = Affine(IDENTITY_MATRIX, [self.0, self.1]);
+        Point(
+            Affine::mul_1(&lhs, &rhs, 0),
+            Affine::mul_1(&lhs, &rhs, 1),
+        )
+    }
+}
 
 // Euclidean group transformations
 pub enum Euclid {
+    Composite(Affine),
     Translate(f64, f64), // parameterizes (dx,dy) to move an object by (i.e. underlying reference frame is not shifted)
     Rotate(f64), // parameterizes angle through the origin which an object will be rotated by - use revolutions i.e. radians / 2π
     Flip(f64), // parameterizes angle through the origin of flip line
     Identity,
 }
 
-impl Mul<Transform> for Transform {
-    type Output = Transform;
-    fn mul(self, rhs: Transform) -> Transform {
-        let lhs_m0 = self.0[0];
-        let lhs_m1 = self.0[1];
-        let rhs_m0 = rhs.0[0];
-        let rhs_m1 = rhs.0[1];
-        Transform(
-            [
-                [lhs_m0[0] * rhs_m0[0] + lhs_m0[1] * rhs_m1[0], lhs_m0[0] * rhs_m0[1] + lhs_m0[1] * rhs_m1[1]],
-                [lhs_m1[0] * rhs_m0[0] + lhs_m1[1] * rhs_m1[0], lhs_m1[0] * rhs_m0[1] + lhs_m1[1] * rhs_m1[1]],
-            ],
-            [
-                lhs_m0[0] * rhs.1[0] + lhs_m0[1] * rhs.1[1] + self.1[0],
-                lhs_m1[0] * rhs.1[0] + lhs_m1[1] * rhs.1[1] + self.1[1],
-            ],
-        )
-    }
-}
-
-impl Mul<Coord> for Transform {
-    type Output = Coord;
-    fn mul(self, rhs: Coord) -> Coord {
-        Coord(
-            self.0[0][0] * rhs.0 + self.0[0][1] * rhs.1 + self.1[0],
-            self.0[1][0] * rhs.0 + self.0[1][1] * rhs.1 + self.1[1],
-        )
-    }
-}
-
-impl Euclid {
-    fn as_transform(&self) -> Transform {
-        match *self {
-            Euclid::Translate(dx, dy) => Transform(IDENTITY_MATRIX, [dx, dy]),
+impl Transform for Euclid {
+    fn as_affine(&self) -> Affine {
+        match self {
+            Euclid::Composite(affine) => affine.clone(),
+            Euclid::Translate(dx, dy) => Affine(IDENTITY_MATRIX, [*dx, *dy]),
             Euclid::Rotate(revolutions) => {
-                let radians = TAU * revolutions;
+                let radians = TAU * (*revolutions);
                 let cos = radians.cos();
                 let sin = radians.sin();
-                Transform([[cos, -sin], [sin, cos]], IDENTITY_VECTOR)
+                Affine([[cos, -sin], [sin, cos]], IDENTITY_VECTOR)
             },
             Euclid::Flip(revolutions) => {
-                let radians = 2.0 * TAU * revolutions;
+                let radians = 2.0 * TAU * (*revolutions);
                 let cos = radians.cos();
                 let sin = radians.sin();
-                Transform([[cos, sin], [sin, -cos]], IDENTITY_VECTOR)
+                Affine([[cos, sin], [sin, -cos]], IDENTITY_VECTOR)
             },
-            Euclid::Identity => IDENTITY_TRANSFORM,
+            Euclid::Identity => IDENTITY_AFFINE,
         }
     }
 }
 
-pub const IDENTITY_MATRIX: [[f64; 2]; 2] = [[1.,0.],[0.,1.]];
-pub const IDENTITY_VECTOR: [f64; 2] = [0.,0.];
-pub const IDENTITY_TRANSFORM: Transform = Transform(IDENTITY_MATRIX, IDENTITY_VECTOR);
+impl<'a> Transformable<'a> for Euclid {
+    fn transform<T: Transform>(&self, transform: &'a T) -> Self {
+        let affine = &transform.as_affine();
+        if let Euclid::Composite(t) = self {
+            return Euclid::Composite(t.transform(affine))
+        } else {
+            return Euclid::Composite(self.as_affine().transform(affine))
+        }
+    }
+}
 
-pub fn compose_euclids(euclids: &[&Euclid]) -> Transform {
-    if euclids.len() == 0 {
-        return IDENTITY_TRANSFORM
-    } else if euclids.len() == 1 {
-        return euclids[0].as_transform()
+pub struct Generator {
+    affine: Affine,
+    generated: Vec<Affine>,
+}
+
+impl Generator {
+    pub fn new(affine: Affine) -> impl FnMut(usize) -> Affine {
+        let mut generator = Generator {
+            affine,
+            generated: vec![IDENTITY_AFFINE, affine],
+        };
+        move |n| {
+            if n < generator.generated.len() {
+                return match generator.generated.get(n) { Some(a) => *a, None => panic!("couldn't generate {} affine", n) }
+            }
+            let mut new_affine = match generator.generated.last() { Some(a) => *a, None => panic!("couldn't find last affine") };
+            for _ in generator.generated.len()-1..n {
+                new_affine = generator.affine.transform(match generator.generated.last() { Some(a) => a, None => panic!("couldn't find last affine") });
+                generator.generated.push(new_affine);
+            }
+            new_affine
+        }
     }
-    let mut transform = euclids[0].as_transform();
-    for euclid in euclids[1..].into_iter() {
-        transform = transform * euclid.as_transform()
+}
+
+pub fn reduce_transforms<T: Transform>(transforms: &Vec<T>) -> Affine {
+    match iter::once(IDENTITY_AFFINE).chain(transforms.into_iter().map(|t| t.as_affine())).reduce(|a,e| e.transform(&a)) {
+        Some(affine) => affine,
+        None => panic!("unable to reduce transforms"),
     }
-    return transform
 }
 
 // Display
 
-impl fmt::Display for Coord {
+impl fmt::Display for Point {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", fmt_f64(self.0), fmt_f64(self.1))
+        write!(f, "({},{})", fmt_f64(self.0), fmt_f64(self.1))
     }
 }
 
 impl fmt::Display for Euclid {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
-            Euclid::Translate(dx, dy) => write!(f, "T({}, {})", dx, dy),
-            Euclid::Rotate(revolutions) => write!(f, "R({}π)", 2.0 * revolutions),
-            Euclid::Flip(revolutions) => write!(f, "F({}π)", 2.0 * revolutions),
+            Euclid::Composite(affine) => write!(f, "{}", affine),
+            Euclid::Translate(dx, dy) => write!(f, "T({}, {})", *dx, *dy),
+            Euclid::Rotate(revolutions) => write!(f, "R({}π)", 2.0 * (*revolutions)),
+            Euclid::Flip(revolutions) => write!(f, "F({}π)", 2.0 * (*revolutions)),
             Euclid::Identity => write!(f, "I"),
         }
     }
@@ -107,7 +215,7 @@ fn dupe_str(s: &str, n: u32) -> String {
     (0..n).map(|_| s).collect::<String>()
 }
 
-fn fmt_f64<'a>(f: f64) -> String {
+pub fn fmt_f64<'a>(f: f64) -> String {
     format!("{}", ((10000. * f).trunc() / 10.).round() / 1000.)
 }
 
@@ -119,7 +227,7 @@ fn str_digits(s: &str) -> (u32, u32) {
 }
 
 fn calc_max_digits(vals: &[&str]) -> (u32, u32) {
-    match vals.into_iter()
+    match vals.iter()
         .map(|val| str_digits(val))
         .reduce(|max_digits, digits| (max_digits.0.max(digits.0), max_digits.1.max(digits.1)))
     { Some(opt) => opt, None => (0, 0) }
@@ -130,7 +238,7 @@ fn wrap_f64(f: &str, (max_trunc_digits, max_fract_digits): (u32, u32)) -> String
     format!("{}{}{}", dupe_str(" ", max_trunc_digits - trunc_digits), f, dupe_str(" ", max_fract_digits - fract_digits))
 }
 
-impl fmt::Display for Transform {
+impl fmt::Display for Affine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let vals: [[String; 3]; 3] = [
             [fmt_f64(self.0[0][0]), fmt_f64(self.0[0][1]), fmt_f64(self.1[0])],
