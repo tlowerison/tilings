@@ -1,11 +1,40 @@
-use std::f64::consts::{PI, TAU};
-use std::iter;
+use std::{
+    f64::consts::{PI, TAU},
+    iter,
+};
 use crate::common::*;
 use crate::tile::*;
 use crate::tiling::{
     Tiling,
     config::*,
 };
+
+pub mod config {
+    use super::*;
+    use crate::tiling;
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen]
+    #[repr(u8)]
+    #[derive(Copy,Clone,PartialEq)]
+    pub enum TilingType {
+        _3_3_3_3_3,
+        _4_4_4_4,
+        _6_6_6,
+        _3_12_12,
+    }
+
+    impl TilingType {
+        pub fn new_tiling(&self) -> tiling::Tiling {
+            match self {
+                TilingType::_3_3_3_3_3 => _3_3_3_3_3(),
+                TilingType::_4_4_4_4 => _4_4_4_4(),
+                TilingType::_6_6_6 => _6_6_6(),
+                TilingType::_3_12_12 => _3_12_12(),
+            }
+        }
+    }
+}
 
 pub fn _3_3_3_3_3() -> Tiling {
     let triangle = regular_polygon(1., 3);
@@ -80,15 +109,15 @@ pub fn _3_12_12() -> Tiling {
                 Component(dodecagon.clone(), 0),
             ],
             neighbors: vec![
-                Neighbor(0, 0, true),
                 Neighbor(0, 1, true),
+                Neighbor(0, 0, true),
                 Neighbor(0, 2, true),
             ],
         },
     ]))
 }
 
-fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
+pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
     let n = num_sides as f64;
     let centroid_angle_of_inclination = PI * (0.5 - 1./n);
     let radius = side_length / 2. / centroid_angle_of_inclination.cos();
@@ -109,6 +138,6 @@ fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
 
     proto_tile.assert_angles(iter::repeat(centroid_angle_of_inclination).take(num_sides).collect());
     proto_tile.assert_sides(iter::repeat(side_length).take(num_sides).collect());
-    
+
     proto_tile
 }

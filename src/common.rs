@@ -5,17 +5,18 @@ use std::{
     iter,
     ops::{Add,Neg,Sub},
 };
+use wasm_bindgen::prelude::*;
 
-// TAU in degrees
+pub const APPROX_FLOAT_PRECISION_F: f64 = 1000.;
+pub const APPROX_FLOAT_PRECISION_I: i32 = 1000;
 pub const IDENTITY_MATRIX: [[f64; 2]; 2] = [[1.,0.],[0.,1.]];
 pub const IDENTITY_VECTOR: [f64; 2] = [0.,0.];
 pub const IDENTITY_AFFINE: Affine = Affine(IDENTITY_MATRIX, IDENTITY_VECTOR);
-pub const APPROX_FLOAT_PRECISION_F: f64 = 1000.;
-pub const APPROX_FLOAT_PRECISION_I: i32 = 1000;
-// TODO: Properly align these two values.
-pub const POINT_PRECISION: f64 = 1_000_000.;
+pub const ORIGIN: Point = Point(0.,0.);
+pub const POINT_PRECISION: f64 = 1_000_000.; // TODO: Properly align this value with POINT_MARGIN
 pub const POINT_MARGIN: (f64, i64) = (0.000_001, 5);
 
+#[wasm_bindgen]
 pub struct Point(pub(crate) f64, pub(crate) f64);
 
 impl Point {
@@ -169,7 +170,6 @@ pub enum Euclid {
     Translate((f64, f64)), // parameterizes (dx,dy) to move an object by (i.e. underlying reference frame is not shifted)
     Rotate(f64), // parameterizes angle through the origin which an object will be rotated by - expects radians
     Flip(f64), // parameterizes angle through the origin of flip line - expects radians
-    Identity,
 }
 
 impl Transform for Euclid {
@@ -189,7 +189,6 @@ impl Transform for Euclid {
                 let sin = radians.sin();
                 Affine([[cos, sin], [sin, -cos]], IDENTITY_VECTOR)
             },
-            Euclid::Identity => IDENTITY_AFFINE,
         }
     }
 }
@@ -218,12 +217,12 @@ impl Generator {
         };
         move |n| {
             if n < generator.generated.len() {
-                return match generator.generated.get(n) { Some(a) => *a, None => panic!("couldn't generate {} affine", n) }
+                return generator.generated.get(n).unwrap().clone()
             }
-            let mut new_affine = match generator.generated.last() { Some(a) => *a, None => panic!("couldn't find last affine") };
-            for _ in generator.generated.len()-1..n {
-                new_affine = generator.affine.transform(match generator.generated.last() { Some(a) => a, None => panic!("couldn't find last affine") });
-                generator.generated.push(new_affine);
+            let mut new_affine = generator.generated.last().unwrap().clone();
+            for i in generator.generated.len()-1..n {
+                new_affine = generator.affine.transform(generator.generated.last().unwrap());
+                generator.generated.push(new_affine.clone());
             }
             new_affine
         }
@@ -268,7 +267,7 @@ pub fn range_iter(range: std::ops::Range<usize>, rev: bool) -> itertools::Either
 
 impl std::fmt::Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({},{})", fmt_f64(self.0), fmt_f64(self.1))
+        write!(f, "[{},{}]", fmt_f64(self.0), fmt_f64(self.1))
     }
 }
 
@@ -279,7 +278,6 @@ impl std::fmt::Display for Euclid {
             Euclid::Translate((dx, dy)) => write!(f, "T({}, {})", *dx, *dy),
             Euclid::Rotate(revolutions) => write!(f, "R({}π)", 2.0 * (*revolutions)),
             Euclid::Flip(revolutions) => write!(f, "F({}π)", 2.0 * (*revolutions)),
-            Euclid::Identity => write!(f, "I"),
         }
     }
 }

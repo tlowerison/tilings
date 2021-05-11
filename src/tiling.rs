@@ -1,11 +1,13 @@
+use colourado::{ColorPalette, PaletteType};
 use float_cmp::*;
 use itertools::*;
+use plotters::style::RGBColor;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     f64::consts::TAU,
 };
 use crate::common::*;
-use crate::tile::ProtoTile;
+use crate::tile::{ProtoTile, Tile};
 
 // abstract graph - tiling
 
@@ -75,7 +77,8 @@ pub mod config {
 
 pub struct Tiling {
     pub name: String,
-    pub proto_tiles: HashSet<ProtoTile>,
+    pub coloring: HashMap<ProtoTile, RGBColor>,
+    pub tiles: Vec<Tile>,
     pub proto_vertex_stars: Vec<ProtoVertexStar>,
 }
 
@@ -89,7 +92,7 @@ impl Tiling {
                 let mut proto_tile = component.0.transform(&Euclid::Translate(point.neg().values()));
                 let next_point = proto_tile.points.get((component.1 + 1) % component.0.size()).unwrap().clone();
                 proto_tile = proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
-                proto_tile.reorient_about_origin();
+                proto_tile.reorient(&ORIGIN);
                 let angle = proto_tile.angle(component.1);
                 proto_tiles.push(proto_tile);
                 rotation += angle;
@@ -116,6 +119,9 @@ impl Tiling {
                     if neighbor.0 >= config.0.len() {
                         panic!("tiling does not have vertex star {} but vertex star {} lists it as a neighbor", neighbor.0, i);
                     }
+                    println!("{} {}", proto_component.proto_tile, all_proto_tiles.get(neighbor.0).unwrap().get(neighbor.1).unwrap());
+                    println!("{} {}", edge_point.neg(), neighbor_edge_point);
+                    println!();
                     let mut rotate = edge_point.neg().arg() - neighbor_edge_point.arg();
                     if (rotate.abs() % TAU) < 0.0001 {
                         rotate = 0.
@@ -142,17 +148,27 @@ impl Tiling {
         }).collect::<Vec<ProtoVertexStar>>();
         proto_vertex_stars.shrink_to_fit();
 
-        let mut proto_tiles: HashSet<ProtoTile> = HashSet::default();
+        let mut tiles: HashSet<Tile> = HashSet::default();
         for vertex in config.0.iter() {
             for component in vertex.components.iter() {
-                proto_tiles.insert(component.0.clone());
+                tiles.insert(Tile::new(component.0.clone()));
             }
         }
 
+        let coloring: HashMap<ProtoTile, RGBColor> = izip!(
+            tiles.iter(),
+            ColorPalette::new(tiles.len() as u32, PaletteType::Random, false).colors.iter()
+        )
+            .map(|(tile, color)| {
+                let rgb = color.to_array().into_iter().map(|e| (e * 256.) as u8).collect::<Vec<u8>>();
+                (tile.proto_tile.clone(), RGBColor(rgb[0], rgb[1], rgb[2]))
+            }).collect::<HashMap<ProtoTile, RGBColor>>();
+
         Tiling {
             name,
-            proto_tiles,
+            coloring,
             proto_vertex_stars,
+            tiles: tiles.into_iter().collect_vec(),
         }
     }
 }

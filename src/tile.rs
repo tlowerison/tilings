@@ -25,11 +25,11 @@ impl ProtoTile {
 
     // reorient_about_origin shifts the underlying points of a ProtoTile so that the first
     // point is the closest to the origin
-    pub fn reorient_about_origin(&mut self) {
+    pub fn reorient(&mut self, origin: &Point) {
         let mut argmin = 0_usize;
         let mut min = f64::MAX;
         for (i, point) in self.points.iter().enumerate() {
-            let norm = point.norm();
+            let norm = (point - origin).norm();
             if norm < min {
                 argmin = i;
                 min = norm;
@@ -74,6 +74,21 @@ impl ProtoTile {
         for (exp, actual) in izip!(exp_side_lengths.iter(), actual_side_lengths.iter()) {
             approx_eq!(f64, exp / max_exp, actual / max_actual);
         }
+    }
+
+    pub fn centroid(&self) -> Point {
+        // calc area
+        let mut points = self.points.clone();
+        points.rotate_right(1);
+        let terms = izip!(self.points.iter(), points.iter())
+            .map(|(p0,p1)| {
+                let conv = p0.0 * p1.1 - p0.1 * p1.0;
+                (conv, conv * (p0.0 + p1.0), conv * (p0.1 + p1.1))
+            })
+            .reduce(|(a0,a1,a2),(e0,e1,e2)| (a0+e0,a1+e1,a2+e2))
+            .unwrap();
+        let area = terms.0 / 2.;
+        Point(terms.1 / (6. * area), terms.2 / (6. * area))
     }
 
     pub fn size(&self) -> usize {
@@ -130,5 +145,36 @@ impl<'a> Transformable<'a> for ProtoTile {
 impl std::fmt::Display for ProtoTile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f,"[{}]", self.points.iter().map(|point| format!("{}", point)).collect::<Vec<String>>().join(","))
+    }
+}
+
+#[derive(Clone)]
+pub struct Tile {
+    pub proto_tile: ProtoTile,
+    pub centroid: Point,
+}
+
+impl Tile {
+    pub fn new(proto_tile: ProtoTile) -> Tile {
+        let centroid = proto_tile.centroid();
+        Tile {
+            proto_tile,
+            centroid,
+        }
+    }
+}
+
+impl Eq for Tile {}
+
+impl PartialEq for Tile {
+    fn eq(&self, other: &Self) -> bool {
+        self.centroid == other.centroid
+    }
+}
+
+impl std::hash::Hash for Tile {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        approx_f64(self.centroid.0).hash(state);
+        approx_f64(self.centroid.1).hash(state);
     }
 }
