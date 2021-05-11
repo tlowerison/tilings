@@ -1,19 +1,22 @@
 mod common;
+mod interval;
+mod patch;
+mod simulation;
 mod tile;
 mod tiling;
+mod tilings;
 
-use svg::node::element::path::Data;
-use std::io;
+use common::Point;
+use patch::*;
 
 fn main() {
-    let tiling = tiling::vertex_rules::tilings::_4444();
-    println!("{}", tiling);
-}
-
-fn read_prototile<'a>() -> tile::ProtoTile {
-    let mut line = String::new();
-    io::stdin()
-        .read_line(&mut line)
-        .expect("expected input: svg.path.d");
-    tile::ProtoTile::new_from_svg(match Data::parse(&line) { Ok(data) => data, Err(e) => panic!("{}", e) })
+    let tiling = tilings::_4_4_4_4();
+    let mut patch = Patch::new(tiling);
+    match patch.add_path(Path {
+        vertex_star_point: Point(0.,0.),
+        component_index: 0,
+        edge_indices: vec![0, 2],
+    }) { Ok(_) => {}, Err(err) => println!("{}", err) }
+    println!("{}", patch);
+    // let allowed_states: Vec<(ProtoTile, u8)> = tiling.proto_tiles.iter().map(|proto_tile| (proto_tile.clone(), 2)).collect();
 }
