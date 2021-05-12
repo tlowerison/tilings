@@ -6,3 +6,6 @@ members = [
   "tiling",
   "wasm",
 ]
+
+[profile.dev]
+split-debuginfo = "unpacked"
