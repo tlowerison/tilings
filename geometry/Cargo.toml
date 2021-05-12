@@ -1,0 +1,12 @@
+[package]
+name = "geometry"
+version = "0.1.0"
+authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+common = { path = "../common" }
+float-cmp = "0.8.0"
+num-traits = "0.2.14"
