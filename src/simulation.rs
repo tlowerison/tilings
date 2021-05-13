@@ -59,11 +59,11 @@ impl State {
 
     pub fn mask_off(&mut self, interval: Interval) {
         let previous = match self.positioned_intervals.range(..PositionedInterval(interval.clone())).next_back() {
-            None => LEFT_IDENTIY_INTERVAL,
+            None => EMPTY_INTERVAL,
             Some(previous) => previous.0.clone(),
         };
         let next = match self.positioned_intervals.range(PositionedInterval(interval.clone())..).next_back() {
-            None => RIGHT_IDENTIY_INTERVAL,
+            None => Interval::new(interval.size(), interval.size()),
             Some(next) => next.0.clone(),
         };
 
