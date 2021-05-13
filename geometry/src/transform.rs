@@ -1,5 +1,4 @@
 use crate::affine::{Affine, IDENTITY_AFFINE};
-
 use std::iter;
 
 pub trait Transform {

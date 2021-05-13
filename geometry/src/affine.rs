@@ -1,7 +1,7 @@
 use crate::transform::{Transform, Transformable};
-
 use common::*;
 use num_traits::cast::NumCast;
+use std::iter;
 
 pub const IDENTITY_AFFINE: Affine = Affine([[1., 0.], [0., 1.]], [0., 0.]);
 const DISPLAY_PRECISION: u32 = 3;
@@ -118,10 +118,6 @@ impl std::fmt::Display for Affine {
     }
 }
 
-fn dupe_str(s: &str, n: u32) -> String {
-    (0..n).map(|_| s).collect::<String>()
-}
-
 fn str_digits(s: &str) -> (u32, u32) {
     let chunks: Vec<&str> = s.split(".").collect();
     let trunc_digits = match chunks.get(0) {
@@ -150,8 +146,8 @@ fn wrap_f64(f: &str, (max_trunc_digits, max_fract_digits): (u32, u32)) -> String
     let (trunc_digits, fract_digits) = str_digits(f);
     format!(
         "{}{}{}",
-        dupe_str(" ", max_trunc_digits - trunc_digits),
+        iter::repeat(String::from(" ")).take((max_trunc_digits - trunc_digits) as usize).collect::<Vec<String>>().join(""),
         f,
-        dupe_str(" ", max_fract_digits - fract_digits)
+        iter::repeat(String::from(" ")).take((max_fract_digits - fract_digits) as usize).collect::<Vec<String>>().join(""),
     )
 }
