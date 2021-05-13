@@ -93,7 +93,7 @@ impl std::fmt::Display for Affine {
                 fmt_float::<f64>(NumCast::from(self.0[1][1]).unwrap(), DISPLAY_PRECISION),
                 fmt_float::<f64>(NumCast::from(self.1[1]).unwrap(), DISPLAY_PRECISION),
             ],
-            [String::from("0"), String::from("0"), String::from("1")],
+            [fmt_float(0., DISPLAY_PRECISION), fmt_float(0., DISPLAY_PRECISION), fmt_float(1., DISPLAY_PRECISION)],
         ];
         let max_digits: [(u32, u32); 3] = [
             calc_max_digits(&[&vals[0][0], &vals[1][0], &vals[2][0]]),
