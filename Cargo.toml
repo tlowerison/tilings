@@ -3,6 +3,7 @@
 members = [
   "common",
   "geometry",
+  "simulation",
   "tiling",
   "wasm",
 ]

@@ -1,8 +1,10 @@
-use itertools::*;
-use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry};
-use crate::common::*;
 use crate::tile::*;
 use crate::tiling::*;
+
+use common::*;
+use geometry::*;
+use itertools::*;
+use std::collections::{HashMap, HashSet, VecDeque, hash_map::Entry};
 
 #[derive(Clone)]
 pub struct VertexStar {
@@ -126,7 +128,7 @@ impl std::fmt::Display for VertexStar {
             self.point,
             self.proto_vertex_star_index,
             self.flip,
-            fmt_f64(self.x_axis),
+            fmt_float(self.x_axis, 3),
         )
     }
 }

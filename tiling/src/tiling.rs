@@ -1,13 +1,13 @@
-use colourado::{ColorPalette, PaletteType};
+use crate::tile::{ProtoTile, Tile};
+
+use common::*;
 use float_cmp::*;
+use geometry::*;
 use itertools::*;
-use plotters::style::RGBColor;
 use std::{
     collections::{HashMap, HashSet},
     f64::consts::TAU,
 };
-use crate::common::*;
-use crate::tile::{ProtoTile, Tile};
 
 // abstract graph - tiling
 
@@ -57,14 +57,14 @@ impl ProtoVertexStar {
 pub mod config {
     use super::ProtoTile;
     pub struct Component(
-        pub(crate) ProtoTile, /* proto_tile */
-        pub(crate) usize,     /* point_index */
+        pub ProtoTile, /* proto_tile */
+        pub usize,     /* point_index */
     );
 
     pub struct Neighbor(
-        pub(crate) usize, /* proto_vertex_star_index */
-        pub(crate) usize, /* neighbor_index */
-        pub(crate) bool,  /* flipped */
+        pub usize, /* proto_vertex_star_index */
+        pub usize, /* neighbor_index */
+        pub bool,  /* flipped */
     );
 
     pub struct Vertex {
@@ -72,12 +72,11 @@ pub mod config {
         pub neighbors: Vec<Neighbor>, // components[i], neighbors[i], components[i+1]
     }
 
-    pub struct Config(pub(crate) Vec<Vertex>);
+    pub struct Config(pub Vec<Vertex>);
 }
 
 pub struct Tiling {
     pub name: String,
-    pub coloring: HashMap<ProtoTile, RGBColor>,
     pub tiles: Vec<Tile>,
     pub proto_vertex_stars: Vec<ProtoVertexStar>,
 }
@@ -155,18 +154,8 @@ impl Tiling {
             }
         }
 
-        let coloring: HashMap<ProtoTile, RGBColor> = izip!(
-            tiles.iter(),
-            ColorPalette::new(tiles.len() as u32, PaletteType::Random, false).colors.iter()
-        )
-            .map(|(tile, color)| {
-                let rgb = color.to_array().into_iter().map(|e| (e * 256.) as u8).collect::<Vec<u8>>();
-                (tile.proto_tile.clone(), RGBColor(rgb[0], rgb[1], rgb[2]))
-            }).collect::<HashMap<ProtoTile, RGBColor>>();
-
         Tiling {
             name,
-            coloring,
             proto_vertex_stars,
             tiles: tiles.into_iter().collect_vec(),
         }
@@ -223,6 +212,6 @@ impl std::fmt::Display for Tiling {
 
 impl std::fmt::Display for VertexStarTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{flip: {}, translate: {}, rotate: {}}}", self.flip, Point::new(self.translate), fmt_f64(self.rotate))
+        write!(f, "{{flip: {}, translate: {}, rotate: {}}}", self.flip, Point::new(self.translate), fmt_float(self.rotate, 3))
     }
 }

@@ -5,10 +5,10 @@ pub const EMPTY_INTERVAL: Interval = Interval(0,0,0);
 pub struct Interval(u8, u8, u64);
 
 // SizedInterval is only concerned with size in terms of ordering.
-pub struct SizedInterval(pub(crate) Interval);
+pub struct SizedInterval(pub Interval);
 
 // PositionedInterval is only concerned with positioning in terms of ordering.
-pub struct PositionedInterval(pub(crate) Interval);
+pub struct PositionedInterval(pub Interval);
 
 
 impl Interval {

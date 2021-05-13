@@ -1,21 +1,33 @@
-mod common;
-mod interval;
-mod patch;
-mod simulation;
-mod tile;
-mod tiling;
-mod tilings;
-
 extern crate console_error_panic_hook;
 
-use common::Point;
-use patch::{Patch, TileDiff};
+use geometry::*;
 use plotters::prelude::*;
 use plotters_canvas::CanvasBackend;
 use std::{collections::HashMap, panic};
-use tilings::config::TilingType;
+use tiling::{self, Patch, Tile, TileDiff};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
+
+#[wasm_bindgen]
+#[repr(u8)]
+#[derive(Copy,Clone,PartialEq)]
+pub enum TilingType {
+    _3_3_3_3_3,
+    _4_4_4_4,
+    _6_6_6,
+    _3_12_12,
+}
+
+impl TilingType {
+    pub fn new_tiling(&self) -> tiling::Tiling {
+        match self {
+            TilingType::_3_3_3_3_3 => tiling::_3_3_3_3_3(),
+            TilingType::_4_4_4_4 => tiling::_4_4_4_4(),
+            TilingType::_6_6_6 => tiling::_6_6_6(),
+            TilingType::_3_12_12 => tiling::_3_12_12(),
+        }
+    }
+}
 
 #[wasm_bindgen]
 pub struct Config {
@@ -51,10 +63,10 @@ pub fn init (canvas: HtmlCanvasElement) -> JsValue {
             None => JsValue::FALSE,
             Some(patch) => {
                 // JsValue::from_str(&format!("{}", patch))
-                let mut tile_diffs: HashMap<tile::Tile, TileDiff> = HashMap::default();
+                let mut tile_diffs: HashMap<Tile, TileDiff> = HashMap::default();
                 let vertex_star = patch.vertex_stars.get(&STATE.vertex_star_point).unwrap();
                 let proto_tile = vertex_star.get_proto_tile(&patch.tiling, STATE.component_index).unwrap();
-                tile_diffs.insert(tile::Tile::new(proto_tile), TileDiff::Added);
+                tile_diffs.insert(Tile::new(proto_tile), TileDiff::Added);
                 match draw(canvas, tile_diffs) {
                     None => JsValue::TRUE,
                     Some(js_value) => js_value,
@@ -77,7 +89,7 @@ pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
 
             let mut patch = Patch::new(tiling);
 
-            patch.add_path(patch::Path {
+            patch.add_path(tiling::Path {
                 vertex_star_point: STATE.vertex_star_point,
                 component_index: STATE.component_index,
                 edge_indices: vec![],
@@ -95,7 +107,7 @@ pub fn step(canvas: HtmlCanvasElement, edge_index: usize) -> JsValue {
         }
         match &mut PATCH {
             Some(patch) => {
-                match patch.add_path(patch::Path{
+                match patch.add_path(tiling::Path {
                     vertex_star_point: STATE.vertex_star_point,
                     component_index: STATE.component_index,
                     edge_indices: vec![edge_index],
@@ -120,7 +132,7 @@ pub fn step(canvas: HtmlCanvasElement, edge_index: usize) -> JsValue {
     }
 }
 
-fn draw(canvas: HtmlCanvasElement, tile_diffs: HashMap<tile::Tile, patch::TileDiff>) -> Option<JsValue> {
+fn draw(canvas: HtmlCanvasElement, tile_diffs: HashMap<Tile, TileDiff>) -> Option<JsValue> {
     unsafe {
         if INITIALIZED == false {
             return Some(JsValue::FALSE)

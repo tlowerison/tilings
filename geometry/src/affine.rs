@@ -6,7 +6,7 @@ use num_traits::cast::NumCast;
 pub const IDENTITY_AFFINE: Affine = Affine([[1., 0.], [0., 1.]], [0., 0.]);
 const DISPLAY_PRECISION: u32 = 3;
 
-pub struct Affine(pub(crate) [[f64; 2]; 2], pub(crate) [f64; 2]); // (affine matrix, translation vector)
+pub struct Affine(pub [[f64; 2]; 2], pub [f64; 2]); // (affine matrix, translation vector)
 
 impl Affine {
     pub fn is_flip(&self) -> bool {

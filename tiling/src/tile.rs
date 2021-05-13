@@ -1,11 +1,12 @@
+use common::*;
 use float_cmp::*;
+use geometry::*;
 use itertools::*;
 use std::{
     collections::VecDeque,
     f64::consts::TAU,
     hash::{Hash, Hasher},
 };
-use crate::common::*;
 
 pub struct ProtoTile {
     pub points: VecDeque<Point>,
@@ -103,10 +104,8 @@ impl PartialEq for ProtoTile {
         if self.size() != other.size() {
             return false
         }
-        for (self_i, other_i) in izip!(range_iter(0..self.size(), self.flipped), range_iter(0..other.size(), other.flipped)) {
-            let self_angle = approx_f64(self.angle(self_i));
-            let other_angle = approx_f64(other.angle(other_i));
-            if self_angle != other_angle {
+        for (self_i, other_i) in izip!(rev_iter(0..self.size(), self.flipped), rev_iter(0..other.size(), other.flipped)) {
+            if hash_float(self.angle(self_i), 4) != hash_float(other.angle(other_i), 4) {
                 return false
             }
         }
@@ -117,8 +116,8 @@ impl PartialEq for ProtoTile {
 // hash angles up to two decimals
 impl Hash for ProtoTile {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        for i in range_iter(0..self.size(), self.flipped) {
-            approx_f64(self.angle(i)).hash(state);
+        for i in rev_iter(0..self.size(), self.flipped) {
+            hash_float(self.angle(i), 2).hash(state);
         }
     }
 }
@@ -174,7 +173,7 @@ impl PartialEq for Tile {
 
 impl std::hash::Hash for Tile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        approx_f64(self.centroid.0).hash(state);
-        approx_f64(self.centroid.1).hash(state);
+        hash_float(self.centroid.0, 2).hash(state);
+        hash_float(self.centroid.1, 2).hash(state);
     }
 }

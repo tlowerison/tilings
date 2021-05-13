@@ -16,7 +16,7 @@ const DISPLAY_PRECISION: u32 = 3;
 const POINT_PRECISION: f64 = 1_000_000.; // TODO: Properly align this value with POINT_MARGIN
 const POINT_MARGIN: (f64, i64) = (0.000_001, 5);
 
-pub struct Point(pub(crate) f64, pub(crate) f64);
+pub struct Point(pub f64, pub f64);
 
 impl Point {
     pub fn new(values: (f64, f64)) -> Point {

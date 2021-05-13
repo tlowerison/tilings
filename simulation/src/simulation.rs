@@ -1,13 +1,10 @@
+use geometry::*;
 use itertools::*;
-use nohash_hasher::IntMap;
-use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     hash::{Hash, Hasher},
 };
-use crate::interval::*;
-use crate::tile::*;
-use crate::tiling::Tiling;
+use tiling::*;
 
 pub struct Cell<'a> {
     pub proto_tile: ProtoTile,
