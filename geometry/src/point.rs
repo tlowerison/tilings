@@ -127,14 +127,14 @@ mod tests {
 
     #[test]
     fn test_point_arg() {
-        approx_eq!(f64, 0. * PI / 4., Point(1., 0.).arg());
-        approx_eq!(f64, 1. * PI / 4., Point(1., 1.).arg());
-        approx_eq!(f64, 2. * PI / 4., Point(0., 1.).arg());
-        approx_eq!(f64, 3. * PI / 4., Point(-1., 1.).arg());
-        approx_eq!(f64, 4. * PI / 4., Point(-1., 0.).arg());
-        approx_eq!(f64, 5. * PI / 4., Point(-1., -1.).arg());
-        approx_eq!(f64, 6. * PI / 4., Point(0., -1.).arg());
-        approx_eq!(f64, 7. * PI / 4., Point(1., -1.).arg());
+        approx_eq!(f64, 0. * TAU / 8., Point(1., 0.).arg());
+        approx_eq!(f64, 1. * TAU / 8., Point(1., 1.).arg());
+        approx_eq!(f64, 2. * TAU / 8., Point(0., 1.).arg());
+        approx_eq!(f64, 3. * TAU / 8., Point(-1., 1.).arg());
+        approx_eq!(f64, 4. * TAU / 8., Point(-1., 0.).arg());
+        approx_eq!(f64, 5. * TAU / 8., Point(-1., -1.).arg());
+        approx_eq!(f64, 6. * TAU / 8., Point(0., -1.).arg());
+        approx_eq!(f64, 7. * TAU / 8., Point(1., -1.).arg());
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         approx_eq!(f64, 2., new_point.1);
 
         let point = Point(1., 1.);
-        let new_point = point.transform(&Euclid::Rotate(PI / 4.));
+        let new_point = point.transform(&Euclid::Rotate(TAU / 8.));
         approx_eq!(f64, 0., new_point.0);
         approx_eq!(f64, 2_f64.sqrt(), new_point.1);
 
@@ -225,12 +225,12 @@ mod tests {
         approx_eq!(f64, -1., new_point.1);
 
         let point = Point(-2., 1.);
-        let new_point = point.transform(&Euclid::Flip(PI / 2.));
+        let new_point = point.transform(&Euclid::Flip(TAU / 4.));
         approx_eq!(f64, 2., new_point.0);
         approx_eq!(f64, 1., new_point.1);
 
         let point = Point(-2., 1.);
-        let new_point = point.transform(&Euclid::Flip(PI / 4.));
+        let new_point = point.transform(&Euclid::Flip(TAU / 8.));
         approx_eq!(f64, 1., new_point.0);
         approx_eq!(f64, -2., new_point.1);
 

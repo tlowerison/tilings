@@ -95,10 +95,10 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
     let radius = side_length / 2. / centroid_angle_of_inclination.cos();
     let centroid = Point(radius * centroid_angle_of_inclination.cos(), radius * centroid_angle_of_inclination.sin());
 
-    let affine = reduce_transforms(&vec![
-        Euclid::Translate((-centroid).values()),
-        Euclid::Rotate(TAU / n),
-        Euclid::Translate(centroid.values()),
+    let affine = reduce_transforms(vec![
+        &Euclid::Translate((-centroid).values()),
+        &Euclid::Rotate(TAU / n),
+        &Euclid::Translate(centroid.values()),
     ]);
 
     let mut generator = Generator::new(affine);

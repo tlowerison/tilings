@@ -6,7 +6,7 @@ use std::iter;
 pub const IDENTITY_AFFINE: Affine = Affine([[1., 0.], [0., 1.]], [0., 0.]);
 const DISPLAY_PRECISION: u32 = 3;
 
-pub struct Affine(pub [[f64; 2]; 2], pub [f64; 2]); // (affine matrix, translation vector)
+pub struct Affine(pub [[f64; 2]; 2], pub [f64; 2]); // (row-major transform matrix, translation vector)
 
 impl Affine {
     pub fn is_flip(&self) -> bool {
@@ -146,8 +146,14 @@ fn wrap_f64(f: &str, (max_trunc_digits, max_fract_digits): (u32, u32)) -> String
     let (trunc_digits, fract_digits) = str_digits(f);
     format!(
         "{}{}{}",
-        iter::repeat(String::from(" ")).take((max_trunc_digits - trunc_digits) as usize).collect::<Vec<String>>().join(""),
+        iter::repeat(String::from(" "))
+            .take((max_trunc_digits - trunc_digits) as usize)
+            .collect::<Vec<String>>()
+            .join(""),
         f,
-        iter::repeat(String::from(" ")).take((max_fract_digits - fract_digits) as usize).collect::<Vec<String>>().join(""),
+        iter::repeat(String::from(" "))
+            .take((max_fract_digits - fract_digits) as usize)
+            .collect::<Vec<String>>()
+            .join(""),
     )
 }
