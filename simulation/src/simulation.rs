@@ -1,9 +1,6 @@
 use geometry::*;
 use itertools::*;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    hash::{Hash, Hasher},
-};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use tiling::*;
 
 pub struct Cell<'a> {
@@ -44,22 +41,39 @@ impl State {
 
     pub fn mask_on(&mut self, size: u8) -> Result<u64, String> {
         let err = String::from("could not assign interval");
-        let parent = match self.sized_intervals.range(SizedInterval::new(0, size)..).next() {
+        let parent = match self
+            .sized_intervals
+            .range(SizedInterval::new(0, size)..)
+            .next()
+        {
             None => return Err(err),
             Some(parent) => parent.clone(),
         };
-        let child = match self.sized_intervals.take(&parent) { None => return Err(err), Some(next) => next };
-        self.positioned_intervals.insert(PositionedInterval::new(child.first() + size, parent.last()));
-        self.sized_intervals.insert(SizedInterval::new(child.first() + size, parent.last()));
+        let child = match self.sized_intervals.take(&parent) {
+            None => return Err(err),
+            Some(next) => next,
+        };
+        self.positioned_intervals
+            .insert(PositionedInterval::new(child.first() + size, parent.last()));
+        self.sized_intervals
+            .insert(SizedInterval::new(child.first() + size, parent.last()));
         Ok(2u64.checked_pow(size as u32).unwrap() - 1 << (64 - child.first() - size))
     }
 
     pub fn mask_off(&mut self, interval: Interval) {
-        let previous = match self.positioned_intervals.range(..PositionedInterval(interval.clone())).next_back() {
+        let previous = match self
+            .positioned_intervals
+            .range(..PositionedInterval(interval.clone()))
+            .next_back()
+        {
             None => EMPTY_INTERVAL,
             Some(previous) => previous.0.clone(),
         };
-        let next = match self.positioned_intervals.range(PositionedInterval(interval.clone())..).next_back() {
+        let next = match self
+            .positioned_intervals
+            .range(PositionedInterval(interval.clone())..)
+            .next_back()
+        {
             None => Interval::new(interval.size(), interval.size()),
             Some(next) => next.0.clone(),
         };
@@ -67,18 +81,21 @@ impl State {
         let mut parent = interval.clone();
 
         if previous.last() == interval.first() && previous.last() != 0 {
-            self.positioned_intervals.take(&PositionedInterval(previous.clone()));
+            self.positioned_intervals
+                .take(&PositionedInterval(previous.clone()));
             self.sized_intervals.take(&SizedInterval(previous.clone()));
             parent.set_first(previous.first());
         }
 
         if next.first() == interval.last() && next.first() != 64 {
-            self.positioned_intervals.take(&PositionedInterval(next.clone()));
+            self.positioned_intervals
+                .take(&PositionedInterval(next.clone()));
             self.sized_intervals.take(&SizedInterval(next.clone()));
             parent.set_last(next.last());
         }
 
-        self.positioned_intervals.insert(PositionedInterval(parent.clone()));
+        self.positioned_intervals
+            .insert(PositionedInterval(parent.clone()));
         self.sized_intervals.insert(SizedInterval(parent.clone()));
     }
 }
@@ -88,9 +105,13 @@ impl<'a> Eq for Cell<'a> {}
 impl<'a> PartialEq for Cell<'a> {
     fn eq(&self, other: &Self) -> bool {
         if self.proto_tile.size() != other.proto_tile.size() {
-            return false
+            return false;
         }
-        return izip!(self.proto_tile.points.iter(), other.proto_tile.points.iter()).all(|(self_point, other_point)| self_point == other_point)
+        return izip!(
+            self.proto_tile.points.iter(),
+            other.proto_tile.points.iter()
+        )
+        .all(|(self_point, other_point)| self_point == other_point);
     }
 }
 

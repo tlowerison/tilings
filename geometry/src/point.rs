@@ -2,10 +2,11 @@ use crate::{
     affine::{Affine, IDENTITY_AFFINE},
     transform::{Transform, Transformable},
 };
-use common::*;
+use common::{fmt_float, DEFAULT_F64_MARGIN};
 use float_cmp::ApproxEq;
 use num_traits::cast::NumCast;
 use std::{
+    f64::consts::TAU,
     hash::{Hash, Hasher},
     ops::{Add, Neg, Sub},
 };
@@ -13,10 +14,6 @@ use std::{
 pub const ORIGIN: Point = Point(0., 0.);
 
 pub const DISPLAY_PRECISION: u32 = 2;
-
-// POINT_MARGIN guarantees that a pair of points with neither coordinate
-// differing by more than POINT_MARGIN.0 / 10. will hash to the same value.
-const POINT_MARGIN: (f64, i64) = (0.000_001, 5);
 
 pub struct Point(pub f64, pub f64);
 
@@ -26,7 +23,7 @@ impl Point {
     }
 
     pub fn arg(&self) -> f64 {
-        self.1.atan2(self.0)
+        (self.1.atan2(self.0) + TAU) % TAU
     }
 
     pub fn neg(&self) -> Point {
@@ -65,8 +62,8 @@ impl Eq for Point {}
 
 impl Hash for Point {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        ((self.0 / POINT_MARGIN.0).round() as i32).hash(state);
-        ((self.1 / POINT_MARGIN.0).round() as i32).hash(state);
+        ((self.0 / DEFAULT_F64_MARGIN.0).round() as i32).hash(state);
+        ((self.1 / DEFAULT_F64_MARGIN.0).round() as i32).hash(state);
     }
 }
 
@@ -79,7 +76,8 @@ impl Neg for Point {
 
 impl PartialEq for Point {
     fn eq(&self, other: &Self) -> bool {
-        self.0.approx_eq(other.0, POINT_MARGIN) && self.1.approx_eq(other.1, POINT_MARGIN)
+        self.0.approx_eq(other.0, DEFAULT_F64_MARGIN)
+            && self.1.approx_eq(other.1, DEFAULT_F64_MARGIN)
     }
 }
 
@@ -112,9 +110,8 @@ impl std::fmt::Display for Point {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::euclid::*;
-    use common::calc_hash;
-    use float_cmp::*;
+    use crate::euclid::Euclid;
+    use common::{approx_eq, calc_hash};
     use std::f64::consts::{PI, TAU};
 
     #[test]
@@ -148,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_point_dot() {
-        approx_eq!(f64, 36., Point(3., 4.).dot(&Point(-2., 10.)));
+        approx_eq!(f64, 34., Point(3., 4.).dot(&Point(-2., 10.)));
     }
 
     #[test]
@@ -181,28 +178,34 @@ mod tests {
     #[test]
     fn test_point_hash() {
         let point0 = Point(PI, TAU);
-        let point1 = Point(PI - POINT_MARGIN.0, TAU + POINT_MARGIN.0);
+        let point1 = Point(PI - DEFAULT_F64_MARGIN.0, TAU + DEFAULT_F64_MARGIN.0);
         assert_ne!(calc_hash(&point0), calc_hash(&point1));
 
         let point0 = Point(PI, TAU);
-        let point1 = Point(PI - POINT_MARGIN.0 / 10., TAU + POINT_MARGIN.0 / 10.);
+        let point1 = Point(
+            PI - DEFAULT_F64_MARGIN.0 / 10.,
+            TAU + DEFAULT_F64_MARGIN.0 / 10.,
+        );
         assert_eq!(calc_hash(&point0), calc_hash(&point1));
     }
 
     #[test]
     fn test_point_eq() {
         let point0 = Point(PI, TAU);
-        let point1 = Point(PI - POINT_MARGIN.0, TAU + POINT_MARGIN.0);
+        let point1 = Point(PI - DEFAULT_F64_MARGIN.0, TAU + DEFAULT_F64_MARGIN.0);
         assert!(point0 != point1);
 
         let point0 = Point(PI, TAU);
-        let point1 = Point(PI - POINT_MARGIN.0 / 10., TAU + POINT_MARGIN.0 / 10.);
+        let point1 = Point(
+            PI - DEFAULT_F64_MARGIN.0 / 10.,
+            TAU + DEFAULT_F64_MARGIN.0 / 10.,
+        );
         assert!(point0 == point1);
     }
 
     #[test]
     fn test_point_sub() {
-        let point = &Point(1., 2.) + &Point(-2., 3.);
+        let point = &Point(1., 2.) - &Point(-2., 3.);
         approx_eq!(f64, 3., point.0);
         approx_eq!(f64, -1., point.1);
     }
@@ -234,10 +237,11 @@ mod tests {
         approx_eq!(f64, 1., new_point.0);
         approx_eq!(f64, -2., new_point.1);
 
+        // https://www.wolframalpha.com/input/?i=%7B%7B2%2C+4%2C+-1%7D%2C+%7B-3%2C+5%2C+1%7D%2C+%7B0%2C0%2C1%7D%7D+*+%7B%7B3.1%7D%2C%7B4.2%7D%2C%7B1%7D%7D
         let point = Point(3.1, 4.2);
         let new_point = point.transform(&Affine([[2., 4.], [-3., 5.]], [-1., 1.]));
-        approx_eq!(f64, 13.6, new_point.0);
-        approx_eq!(f64, 12.7, new_point.0);
+        approx_eq!(f64, 22., new_point.0);
+        approx_eq!(f64, 12.7, new_point.1);
     }
 
     #[test]

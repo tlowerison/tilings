@@ -5,6 +5,40 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+// DEFAULT_F64_MARGIN guarantees that a pair of points with neither coordinate
+// differing by more than F64_MARGIN.0 / 10. will hash to the same value.
+pub const DEFAULT_F64_MARGIN: (f64, i64) = (0.000_001, 5);
+
+// approx_eq rewrites float_cmp's macro approx_eq! with an additional assertion in case
+// the two values are not approximately equal because otherwise we lose the info of
+// what the two compared values were in the test output.
+#[macro_export]
+macro_rules! approx_eq {
+    ($typ:ty, $lhs:expr, $rhs:expr) => {
+        {
+            if !<$typ as float_cmp::ApproxEq>::approx_eq($lhs, $rhs, (0.000_001, 5)) {
+                assert_eq!($lhs, $rhs)
+            }
+        }
+    };
+    ($typ:ty, $lhs:expr, $rhs:expr $(, $set:ident = $val:expr)*) => {
+        {
+            let m = <$typ as float_cmp::ApproxEq>::Margin::zero()$(.$set($val))*;
+            if !<$typ as float_cmp::ApproxEq>::approx_eq($lhs, $rhs, m) {
+                assert_eq!($lhs, $rhs)
+            }
+        }
+    };
+    ($typ:ty, $lhs:expr, $rhs:expr, $marg:expr) => {
+        {
+            if !<$typ as float_cmp::ApproxEq>::approx_eq($lhs, $rhs, $marg) {
+                assert_eq!($lhs, $rhs)
+            }
+        }
+    };
+}
+
+// calc_hash computes and outputs a values hash
 pub fn calc_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);

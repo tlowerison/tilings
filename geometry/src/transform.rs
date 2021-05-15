@@ -26,7 +26,7 @@ pub fn reduce_transforms<T: Transform>(transforms: Vec<&T>) -> Affine {
 mod tests {
     use super::*;
     use crate::euclid::Euclid;
-    use float_cmp::*;
+    use common::approx_eq;
     use std::f64::consts::TAU;
 
     #[test]

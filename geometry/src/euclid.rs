@@ -22,13 +22,13 @@ impl Transform for Euclid {
                 let cos = radians.cos();
                 let sin = radians.sin();
                 Affine([[cos, -sin], [sin, cos]], IDENTITY_AFFINE.1)
-            },
+            }
             Euclid::Flip(radians) => {
-                let radians = *radians;
+                let radians = 2. * radians;
                 let cos = radians.cos();
                 let sin = radians.sin();
                 Affine([[cos, sin], [sin, -cos]], IDENTITY_AFFINE.1)
-            },
+            }
             Euclid::Composite(affine) => affine.clone(),
         }
     }
@@ -48,9 +48,18 @@ impl<'a> Transformable<'a> for Euclid {
 impl std::fmt::Display for Euclid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            Euclid::Translate((dx, dy)) => write!(f, "T({}, {})", fmt_float(*dx, DISPLAY_PRECISION), fmt_float(*dy, DISPLAY_PRECISION)),
-            Euclid::Rotate(radians) => write!(f, "R({}π)", fmt_float(radians / PI, DISPLAY_PRECISION)),
-            Euclid::Flip(radians) => write!(f, "F({}π)", fmt_float(radians / PI, DISPLAY_PRECISION)),
+            Euclid::Translate((dx, dy)) => write!(
+                f,
+                "T({}, {})",
+                fmt_float(*dx, DISPLAY_PRECISION),
+                fmt_float(*dy, DISPLAY_PRECISION)
+            ),
+            Euclid::Rotate(radians) => {
+                write!(f, "R({}π)", fmt_float(radians / PI, DISPLAY_PRECISION))
+            }
+            Euclid::Flip(radians) => {
+                write!(f, "F({}π)", fmt_float(radians / PI, DISPLAY_PRECISION))
+            }
             Euclid::Composite(affine) => write!(f, "{}", affine),
         }
     }
@@ -59,12 +68,12 @@ impl std::fmt::Display for Euclid {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::approx_eq;
     use std::f64::consts::PI;
-    use float_cmp::*;
 
     #[test]
     fn test_euclid_as_affine() {
-        let affine = Euclid::Translate((2.,3.)).as_affine();
+        let affine = Euclid::Translate((2., 3.)).as_affine();
         approx_eq!(f64, 1., affine.0[0][0]);
         approx_eq!(f64, 0., affine.0[0][1]);
         approx_eq!(f64, 0., affine.0[1][0]);
@@ -83,10 +92,10 @@ mod tests {
 
         let x_axis = PI / 3.;
         let affine = Euclid::Flip(x_axis).as_affine();
-        approx_eq!(f64, x_axis.cos(), affine.0[0][0]);
-        approx_eq!(f64, x_axis.sin(), affine.0[0][1]);
-        approx_eq!(f64, x_axis.sin(), affine.0[1][0]);
-        approx_eq!(f64, -x_axis.cos(), affine.0[1][1]);
+        approx_eq!(f64, (2. * x_axis).cos(), affine.0[0][0]);
+        approx_eq!(f64, (2. * x_axis).sin(), affine.0[0][1]);
+        approx_eq!(f64, (2. * x_axis).sin(), affine.0[1][0]);
+        approx_eq!(f64, -(2. * x_axis).cos(), affine.0[1][1]);
         approx_eq!(f64, 0., affine.1[0]);
         approx_eq!(f64, 0., affine.1[1]);
 
@@ -101,7 +110,9 @@ mod tests {
 
     #[test]
     fn test_euclid_transform() {
-        let euclid = Euclid::Translate((1.,1.)).transform(&Euclid::Rotate(PI / 4.)).transform(&Euclid::Translate((-1.,-1.)));
+        let euclid = Euclid::Translate((1., 1.))
+            .transform(&Euclid::Rotate(PI / 4.))
+            .transform(&Euclid::Translate((-1., -1.)));
         match euclid {
             Euclid::Translate(_) => assert!(false),
             Euclid::Rotate(_) => assert!(false),
@@ -114,15 +125,21 @@ mod tests {
                 approx_eq!(f64, s, affine.0[1][1]);
                 approx_eq!(f64, -1., affine.1[0]);
                 approx_eq!(f64, 2. * s - 1., affine.1[1]);
-            },
+            }
         }
     }
 
     #[test]
     fn test_euclid_fmt() {
-        assert_eq!("T(1.33, 4.89)", format!("{}", Euclid::Translate((1.3333, 4.8888))));
+        assert_eq!(
+            "T(1.33, 4.89)",
+            format!("{}", Euclid::Translate((1.3333, 4.8888)))
+        );
         assert_eq!("R(0.50π)", format!("{}", Euclid::Rotate(PI / 2.)));
         assert_eq!("F(-0.33π)", format!("{}", Euclid::Flip(-PI / 3.)));
-        assert_eq!(format!("{}", IDENTITY_AFFINE), format!("{}", Euclid::Composite(IDENTITY_AFFINE)));
+        assert_eq!(
+            format!("{}", IDENTITY_AFFINE),
+            format!("{}", Euclid::Composite(IDENTITY_AFFINE))
+        );
     }
 }

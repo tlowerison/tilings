@@ -1,13 +1,8 @@
 use crate::tile::{ProtoTile, Tile};
-
-use common::*;
-use float_cmp::*;
-use geometry::*;
-use itertools::*;
-use std::{
-    collections::{HashMap, HashSet},
-    f64::consts::TAU,
-};
+use common::{approx_eq, fmt_float};
+use geometry::{Euclid, Point, Transformable, ORIGIN};
+use itertools::{izip, Itertools};
+use std::{collections::HashSet, f64::consts::TAU};
 
 // abstract graph - tiling
 
@@ -83,22 +78,39 @@ pub struct Tiling {
 
 impl Tiling {
     pub fn new(name: String, config: config::Config) -> Tiling {
-        let all_proto_tiles: Vec<Vec<ProtoTile>> = config.0.iter().map(|vertex| {
-            let mut proto_tiles: Vec<ProtoTile> = vec![];
-            let mut rotation = 0.;
-            for component in vertex.components.iter() {
-                let point = match component.0.points.get(component.1) { Some(point) => point, None => panic!("missing point for index {} in ProtoTile {}", component.1, component.0) };
-                let mut proto_tile = component.0.transform(&Euclid::Translate(point.neg().values()));
-                let next_point = proto_tile.points.get((component.1 + 1) % component.0.size()).unwrap().clone();
-                proto_tile = proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
-                proto_tile.reorient(&ORIGIN);
-                let angle = proto_tile.angle(component.1);
-                proto_tiles.push(proto_tile);
-                rotation += angle;
-            }
-            approx_eq!(f64, TAU, rotation, ulps = 2);
-            proto_tiles
-        }).collect();
+        let all_proto_tiles: Vec<Vec<ProtoTile>> = config
+            .0
+            .iter()
+            .map(|vertex| {
+                let mut proto_tiles: Vec<ProtoTile> = vec![];
+                let mut rotation = 0.;
+                for component in vertex.components.iter() {
+                    let point = match component.0.points.get(component.1) {
+                        Some(point) => point,
+                        None => panic!(
+                            "missing point for index {} in ProtoTile {}",
+                            component.1, component.0
+                        ),
+                    };
+                    let mut proto_tile = component
+                        .0
+                        .transform(&Euclid::Translate(point.neg().values()));
+                    let next_point = proto_tile
+                        .points
+                        .get((component.1 + 1) % component.0.size())
+                        .unwrap()
+                        .clone();
+                    proto_tile =
+                        proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
+                    proto_tile.reorient(&ORIGIN);
+                    let angle = proto_tile.angle(component.1);
+                    proto_tiles.push(proto_tile);
+                    rotation += angle;
+                }
+                approx_eq!(f64, TAU, rotation);
+                proto_tiles
+            })
+            .collect();
 
         let mut proto_vertex_stars = izip!(config.0.iter(), all_proto_tiles.iter()).enumerate().map(|(i,(vertex, proto_tiles))| {
             let proto_components = {
@@ -172,20 +184,39 @@ impl std::fmt::Display for ProtoComponent {
 
 impl std::fmt::Display for ProtoNeighbor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}", self.proto_vertex_star_index, self.neighbor_index, self.transform)
+        write!(
+            f,
+            "{} {} {}",
+            self.proto_vertex_star_index, self.neighbor_index, self.transform
+        )
     }
 }
 
 impl std::fmt::Display for ProtoVertexStar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match write!(f, "{}-components:\n", self.index) { Ok(_) => {}, Err(e) => return Err(e) }
-        for proto_component in self.proto_components.iter() {
-            match write!(f, "{}\n", proto_component) { Ok(_) => {}, Err(e) => return Err(e) }
+        match write!(f, "{}-components:\n", self.index) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
         }
-        match write!(f, "\n") { Ok(_) => {}, Err(e) => return Err(e) }
-        match write!(f, "{}-neighbors:\n", self.index) { Ok(_) => {}, Err(e) => return Err(e) }
+        for proto_component in self.proto_components.iter() {
+            match write!(f, "{}\n", proto_component) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        match write!(f, "\n") {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+        match write!(f, "{}-neighbors:\n", self.index) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
         for proto_neighbor in self.proto_neighbors.iter() {
-            match write!(f, "{}\n", proto_neighbor) { Ok(_) => {}, Err(e) => return Err(e) }
+            match write!(f, "{}\n", proto_neighbor) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
@@ -194,16 +225,47 @@ impl std::fmt::Display for ProtoVertexStar {
 impl std::fmt::Display for Tiling {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let title = format!("Tiling {}", self.name);
-        match write!(f, "{}\n{}\n", title, "-".repeat(title.len())) { Ok(_) => {}, Err(e) => return Err(e) };
+        match write!(f, "{}\n{}\n", title, "-".repeat(title.len())) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        };
         for proto_vertex_star in self.proto_vertex_stars.iter() {
-            match write!(f, "adjacencies:\n{}: {}", proto_vertex_star.index, proto_vertex_star.proto_neighbors.iter().map(|proto_neighbor| format!("({},{})", proto_neighbor.proto_vertex_star_index, proto_neighbor.neighbor_index)).collect::<Vec<String>>().join(" ")) { Ok(_) => {}, Err(e) => return Err(e) };
-            match write!(f, "\n") { Ok(_) => {}, Err(e) => return Err(e) };
+            match write!(
+                f,
+                "adjacencies:\n{}: {}",
+                proto_vertex_star.index,
+                proto_vertex_star
+                    .proto_neighbors
+                    .iter()
+                    .map(|proto_neighbor| format!(
+                        "({},{})",
+                        proto_neighbor.proto_vertex_star_index, proto_neighbor.neighbor_index
+                    ))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            };
+            match write!(f, "\n") {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            };
         }
-        match write!(f, "\n") { Ok(_) => {}, Err(e) => return Err(e) };
+        match write!(f, "\n") {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        };
         for (i, proto_vertex_star) in self.proto_vertex_stars.iter().enumerate() {
-            match write!(f, "{}", proto_vertex_star) { Ok(_) => {}, Err(e) => return Err(e) };
+            match write!(f, "{}", proto_vertex_star) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            };
             if i < self.proto_vertex_stars.len() - 1 {
-                match write!(f, "\n") { Ok(_) => {}, Err(e) => return Err(e) };
+                match write!(f, "\n") {
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                };
             }
         }
         Ok(())
@@ -212,6 +274,12 @@ impl std::fmt::Display for Tiling {
 
 impl std::fmt::Display for VertexStarTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{flip: {}, translate: {}, rotate: {}}}", self.flip, Point::new(self.translate), fmt_float(self.rotate, 3))
+        write!(
+            f,
+            "{{flip: {}, translate: {}, rotate: {}}}",
+            self.flip,
+            Point::new(self.translate),
+            fmt_float(self.rotate, 3)
+        )
     }
 }
