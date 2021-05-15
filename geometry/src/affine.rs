@@ -69,7 +69,7 @@ impl Generator {
                 return generator.generated.get(n).unwrap().clone();
             }
             let mut new_affine = generator.generated.last().unwrap().clone();
-            for i in generator.generated.len() - 1..n {
+            for _ in generator.generated.len() - 1..n {
                 new_affine = generator
                     .affine
                     .transform(generator.generated.last().unwrap());

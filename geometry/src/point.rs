@@ -12,7 +12,7 @@ use std::{
 
 pub const ORIGIN: Point = Point(0., 0.);
 
-const DISPLAY_PRECISION: u32 = 2;
+pub const DISPLAY_PRECISION: u32 = 2;
 
 // POINT_MARGIN guarantees that a pair of points with neither coordinate
 // differing by more than POINT_MARGIN.0 / 10. will hash to the same value.
