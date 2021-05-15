@@ -13,11 +13,11 @@ impl Affine {
         self.0[0][0] * self.0[1][1] - self.0[0][1] * self.0[1][0] < 0.
     }
 
-    pub fn mul_0(lhs: &Affine, rhs: &Affine, i: usize, j: usize) -> f64 {
+    pub(crate) fn mul_0(lhs: &Affine, rhs: &Affine, i: usize, j: usize) -> f64 {
         lhs.0[j][0] * rhs.0[0][i] + lhs.0[j][1] * rhs.0[1][i]
     }
 
-    pub fn mul_1(lhs: &Affine, rhs: &Affine, i: usize) -> f64 {
+    pub(crate) fn mul_1(lhs: &Affine, rhs: &Affine, i: usize) -> f64 {
         lhs.0[i][0] * rhs.1[0] + lhs.0[i][1] * rhs.1[1] + lhs.1[i]
     }
 }
