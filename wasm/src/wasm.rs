@@ -1,5 +1,6 @@
 extern crate console_error_panic_hook;
 
+use crate::coloring::Coloring;
 use geometry::*;
 use plotters::prelude::*;
 use plotters_canvas::CanvasBackend;
@@ -38,16 +39,21 @@ static mut CONFIG: Config = Config {
     tiling_type: TilingType::_6_6_6,
 };
 
-static mut INITIALIZED: bool = false;
-static mut PATCH: Option<Patch> = None;
-
 struct State {
-    vertex_star_point: Point,
     component_index: usize,
+    vertex_star_point: Point,
+    heap_state: Option<HeapState>,
 }
+
+struct HeapState {
+    coloring: Coloring,
+    patch: Patch,
+}
+
 static mut STATE: State = State {
-    vertex_star_point: Point(0.,0.),
     component_index: 0,
+    vertex_star_point: Point(0.,0.),
+    heap_state: None,
 };
 
 const CENTER: (i32, i32) = (300, 200);
@@ -58,14 +64,13 @@ pub fn init (canvas: HtmlCanvasElement) -> JsValue {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     unsafe {
         set_tiling(canvas.clone(), CONFIG.tiling_type);
-        INITIALIZED = true;
-        match &PATCH {
+        match &STATE.heap_state {
             None => JsValue::FALSE,
-            Some(patch) => {
+            Some(heap_state) => {
                 // JsValue::from_str(&format!("{}", patch))
                 let mut tile_diffs: HashMap<Tile, TileDiff> = HashMap::default();
-                let vertex_star = patch.vertex_stars.get(&STATE.vertex_star_point).unwrap();
-                let proto_tile = vertex_star.get_proto_tile(&patch.tiling, STATE.component_index).unwrap();
+                let vertex_star = heap_state.patch.vertex_stars.get(&STATE.vertex_star_point).unwrap();
+                let proto_tile = vertex_star.get_proto_tile(&heap_state.patch.tiling, STATE.component_index).unwrap();
                 tile_diffs.insert(Tile::new(proto_tile), TileDiff::Added);
                 match draw(canvas, tile_diffs) {
                     None => JsValue::TRUE,
@@ -79,12 +84,14 @@ pub fn init (canvas: HtmlCanvasElement) -> JsValue {
 #[wasm_bindgen]
 pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
     unsafe {
-        if !INITIALIZED || CONFIG.tiling_type != tiling_type {
+
+        let initialized = match STATE.heap_state { Some(_) => true, None => false };
+        if !initialized || CONFIG.tiling_type != tiling_type {
             let tiling = tiling_type.new_tiling();
             CONFIG.tiling_type = tiling_type;
-            match &mut PATCH {
+            match &mut STATE.heap_state {
                 None => {},
-                Some(patch) => { draw(canvas, patch.drain_tiles()); },
+                Some(heap_state) => { draw(canvas, heap_state.patch.drain_tiles()); },
             };
 
             let mut patch = Patch::new(tiling);
@@ -94,7 +101,10 @@ pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
                 component_index: STATE.component_index,
                 edge_indices: vec![],
             });
-            PATCH = Some(patch);
+            STATE.heap_state = Some(HeapState {
+                coloring: Coloring::new(&patch.tiling),
+                patch,
+            });
         }
     }
 }
@@ -102,12 +112,9 @@ pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
 #[wasm_bindgen]
 pub fn step(canvas: HtmlCanvasElement, edge_index: usize) -> JsValue {
     unsafe {
-        if INITIALIZED == false {
-            return JsValue::FALSE
-        }
-        match &mut PATCH {
-            Some(patch) => {
-                match patch.add_path(tiling::Path {
+        match &mut STATE.heap_state {
+            Some(heap_state) => {
+                match heap_state.patch.add_path(tiling::Path {
                     vertex_star_point: STATE.vertex_star_point,
                     component_index: STATE.component_index,
                     edge_indices: vec![edge_index],
@@ -115,11 +122,11 @@ pub fn step(canvas: HtmlCanvasElement, edge_index: usize) -> JsValue {
                     Ok((vertex_star_point, component_index)) => {
                         STATE.vertex_star_point = vertex_star_point;
                         STATE.component_index = component_index;
-                        match draw(canvas, patch.drain_tile_diffs()) {
+                        match draw(canvas, heap_state.patch.drain_tile_diffs()) {
                             Some(js_value) => js_value,
                             None => {
-                                let vertex_star = patch.vertex_stars.get(&vertex_star_point).unwrap();
-                                let link = match vertex_star.get_component_edges(&patch.tiling, component_index) { None => return JsValue::TRUE, Some(link) => link };
+                                let vertex_star = heap_state.patch.vertex_stars.get(&vertex_star_point).unwrap();
+                                let link = match vertex_star.get_component_edges(&heap_state.patch.tiling, component_index) { None => return JsValue::TRUE, Some(link) => link };
                                 JsValue::from_str(&format!("{{\"vertex_star_point\":{},\"edges\":[{}]}}", vertex_star_point, link.iter().map(|(p0,p1)| format!("[{},{}]", p0, p1)).collect::<Vec<String>>().join(",")))
                             },
                         }
@@ -134,18 +141,15 @@ pub fn step(canvas: HtmlCanvasElement, edge_index: usize) -> JsValue {
 
 fn draw(canvas: HtmlCanvasElement, tile_diffs: HashMap<Tile, TileDiff>) -> Option<JsValue> {
     unsafe {
-        if INITIALIZED == false {
-            return Some(JsValue::FALSE)
-        }
-        match &PATCH {
+        match &STATE.heap_state {
             None => Some(JsValue::FALSE),
-            Some(patch) => {
+            Some(heap_state) => {
                 let mut backend = CanvasBackend::with_canvas_object(canvas).unwrap();
                 for (tile, tile_diff) in tile_diffs.into_iter() {
                     let mut points = tile.proto_tile.points.iter().map(|point| (CENTER.0 + (SCALE * point.0).round() as i32, CENTER.1 - (SCALE * point.1).round() as i32)).collect::<Vec<(i32,i32)>>();
                     let result = match tile_diff {
                         TileDiff::Added => {
-                            backend.fill_polygon(points.clone(), patch.tiling.coloring.get(&tile.proto_tile).unwrap_or(&BLACK));
+                            backend.fill_polygon(points.clone(), heap_state.coloring.0.get(&tile.proto_tile).unwrap_or(&BLACK));
                             points.push(points.get(0).unwrap().clone());
                             backend.draw_path(points, &BLACK)
                         },

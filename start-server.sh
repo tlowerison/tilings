@@ -11,13 +11,13 @@ then
 	cargo install wasm-pack
 fi
 
-if [ "${CONFIG}" = "release" ]
-then
+cd wasm
+if [ "${CONFIG}" = "release" ]; then
     wasm-pack build
 else
     wasm-pack build --release
 fi
 
-cd www
+cd ../www
 npm install
 npm start

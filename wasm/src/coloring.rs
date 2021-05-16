@@ -4,7 +4,7 @@ use plotters::style::RGBColor;
 use std::collections::HashMap;
 use tiling::*;
 
-pub struct Coloring(HashMap<ProtoTile, RGBColor>);
+pub struct Coloring(pub(crate) HashMap<ProtoTile, RGBColor>);
 
 impl Coloring {
     pub fn new(tiling: &Tiling) -> Coloring {
