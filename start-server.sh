@@ -19,5 +19,4 @@ else
 fi
 
 cd ../www
-npm install
-npm start
+yarn && yarn start
