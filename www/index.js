@@ -2,18 +2,17 @@ import { init, set_tiling, step } from "cellular-automata";
 
 const canvas = document.getElementById("canvas");
 
+let point = [];
+let edges = [];
+
 global.canvas = canvas;
 global.set_tiling = (tiling_type) => set_tiling(canvas, tiling_type);
 global.step = (canvas, edge_index) => {
   const result = step(canvas, edge_index);
   if (typeof result === "string") {
-    console.log(result);
-    const foo = JSON.parse(result);
-    console.log(foo.vertex_star_point);
-    return foo.edges.forEach((edge, i) => {
-      console.log(i, JSON.stringify(edge.map(point => point.map(num => Math.round(num * 1000) / 1000))));
-    });
-    ;
+    const vals = JSON.parse(result);
+    point = vals.vertex_star_point;
+    edges = vals.edges.map(edge => edge.map(point => point.map(num => Math.round(num * 1000) / 1000)));
   }
   return result;
 };
@@ -28,6 +27,7 @@ export function main() {
 /** Add event listeners. */
 function setupUI() {
   window.addEventListener("resize", setupCanvas);
+  document.getElementById("step").onclick = () => global.step(canvas, Math.floor(Math.random() * edges.length));
 }
 
 /** Setup canvas to properly handle high DPI and redraw current plot. */
