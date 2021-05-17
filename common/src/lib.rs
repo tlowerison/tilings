@@ -75,6 +75,7 @@ pub fn hash_float<F: Float>(f: F, decimal_precision: u32) -> i32 {
         .unwrap()
 }
 
+// rad converts any radian value into the equivalent radian value in the range [0, τ]
 pub fn rad(f: f64) -> f64 {
     let rad = (TAU + (f % TAU)) % TAU;
     if rad.approx_eq(TAU, DEFAULT_F64_MARGIN) { 0. } else { rad }
@@ -90,6 +91,11 @@ pub fn rev_iter<I>(
     } else {
         itertools::Either::Right(iter.rev())
     }
+}
+
+// to_rad converts degrees to radians
+pub fn to_rad(f: f64) -> f64 {
+    rad(f / 360. * TAU)
 }
 
 #[cfg(test)]

@@ -155,216 +155,159 @@ mod tests {
     use crate::tile::regular_polygon;
     use crate::tiling::config::{Component, Config, Neighbor, Vertex};
     use crate::tilings::_4_4_4_4;
-    use common::approx_eq;
     use geometry::Point;
     use std::f64::consts::{PI, TAU};
 
     #[test]
     fn test_vertex_star_get_neighbor() {
-        let s32 = 3_f64.sqrt() / 2.;
         let triangle = regular_polygon(1., 3);
         let square = regular_polygon(1., 4);
         let hexagon = regular_polygon(1., 6);
         let dodecagon = regular_polygon(1., 12);
+        let x = Point(1., 0.);
+
+        let tiling_4_4_4_4 = Tiling::new(
+            String::from("4.4.4.4"),
+            Config(vec![Vertex {
+                components: vec![
+                    Component(square.clone(), 0),
+                    Component(square.clone(), 1),
+                    Component(square.clone(), 2),
+                    Component(square.clone(), 3),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 2, false),
+                    Neighbor(0, 3, false),
+                    Neighbor(0, 0, false),
+                    Neighbor(0, 1, false),
+                ],
+            }]),
+        );
+
+        let tiling_3_3_3_3_3_3 = Tiling::new(
+            String::from("3.3.3.3.3.3"),
+            Config(vec![Vertex {
+                components: vec![
+                    Component(triangle.clone(), 0),
+                    Component(triangle.clone(), 0),
+                    Component(triangle.clone(), 0),
+                    Component(triangle.clone(), 0),
+                    Component(triangle.clone(), 0),
+                    Component(triangle.clone(), 0),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 3, false),
+                    Neighbor(0, 4, false),
+                    Neighbor(0, 5, false),
+                    Neighbor(0, 0, false),
+                    Neighbor(0, 1, false),
+                    Neighbor(0, 2, false),
+                ],
+            }]),
+        );
+
+        let tiling_6_6_6 = Tiling::new(
+            String::from("6.6.6"),
+            Config(vec![Vertex {
+                components: vec![
+                    Component(hexagon.clone(), 0),
+                    Component(hexagon.clone(), 0),
+                    Component(hexagon.clone(), 0),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 1, false),
+                    Neighbor(0, 2, false),
+                    Neighbor(0, 0, false),
+                ],
+            }]),
+        );
+
+        let tiling_3_12_12 = Tiling::new(
+            String::from("3.12.12"),
+            Config(vec![Vertex {
+                components: vec![
+                    Component(triangle.clone(), 0),
+                    Component(dodecagon.clone(), 0),
+                    Component(dodecagon.clone(), 0),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 1, false),
+                    Neighbor(0, 0, false),
+                    Neighbor(0, 2, false),
+                ],
+            }]),
+        );
+
+        let tiling_4_6_12 = Tiling::new(
+            String::from("4.6.12"),
+            Config(vec![Vertex {
+                components: vec![
+                    Component(dodecagon.clone(), 0),
+                    Component(hexagon.clone(), 0),
+                    Component(square.clone(), 0),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 0, true),
+                    Neighbor(0, 1, true),
+                    Neighbor(0, 2, true),
+                ],
+            }]),
+        );
 
         for rotation in (0..8).map(|i| rad((i as f64) * TAU / 8.)) {
             println!("rotation: {}π", fmt_float(rotation / PI, 2));
 
             let rotate = Euclid::Rotate(rotation);
-
-            let tiling = Tiling::new(
-                String::from("4.4.4.4"),
-                Config(vec![Vertex {
-                    components: vec![
-                        Component(square.clone(), 0),
-                        Component(square.clone(), 1),
-                        Component(square.clone(), 2),
-                        Component(square.clone(), 3),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 2, false),
-                        Neighbor(0, 3, false),
-                        Neighbor(0, 0, false),
-                        Neighbor(0, 1, false),
-                    ],
-                }]),
-            );
             let vertex_star = VertexStar::new(Point(0.,0.), 0, false, rotation);
 
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 0) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
+            let assert_vertex_star_neighbor = |
+                tiling: &Tiling,
+                vertex_star: &VertexStar,
+                neighbor_index: usize,
+                expected_point: Point,
+                expected_parity: bool,
+                expected_rotation: f64,
+            | {
+                println!("input: {} {} | expected: {} {} {}π", vertex_star.point, neighbor_index, expected_point.transform(&rotate), expected_parity, fmt_float(rad(expected_rotation + rotation) / PI, 2));
+                let neighbor_vertex_star = match vertex_star.get_neighbor(tiling, neighbor_index) { None => return assert!(false), Some(vs) => vs };
+                assert_eq!(expected_point.transform(&rotate), neighbor_vertex_star.point);
+                assert_eq!(expected_parity, neighbor_vertex_star.parity);
+                approx_eq!(f64, rad(expected_rotation + rotation), neighbor_vertex_star.rotation);
+            };
 
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 1) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(0., 1.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
+            println!("{}", tiling_4_4_4_4.name);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 3, x.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
+            println!();
 
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 2) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(-1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
+            println!("{}", tiling_3_3_3_3_3_3.name);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 3, x.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 4, x.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 5, x.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
+            println!();
 
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 3) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(0., -1.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
+            println!("{}", tiling_6_6_6.name);
+            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
+            println!();
 
+            println!("{}", tiling_3_12_12.name);
+            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, x, false, to_rad(120.));
+            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
+            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
+            println!();
 
-            let tiling = Tiling::new(
-                String::from("3.3.3.3.3.3"),
-                Config(vec![Vertex {
-                    components: vec![
-                        Component(triangle.clone(), 0),
-                        Component(triangle.clone(), 0),
-                        Component(triangle.clone(), 0),
-                        Component(triangle.clone(), 0),
-                        Component(triangle.clone(), 0),
-                        Component(triangle.clone(), 0),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 3, false),
-                        Neighbor(0, 4, false),
-                        Neighbor(0, 5, false),
-                        Neighbor(0, 0, false),
-                        Neighbor(0, 1, false),
-                        Neighbor(0, 2, false),
-                    ],
-                }]),
-            );
-            let vertex_star = VertexStar::new(Point(0.,0.), 0, false, rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 0) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 1) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(0.5, s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 2) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(-0.5, s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 3) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(-1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 4) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(-0.5, -s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 5) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(0.5, -s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
-
-
-            let tiling = Tiling::new(
-                String::from("6.6.6"),
-                Config(vec![Vertex {
-                    components: vec![
-                        Component(hexagon.clone(), 0),
-                        Component(hexagon.clone(), 0),
-                        Component(hexagon.clone(), 0),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 1, false),
-                        Neighbor(0, 2, false),
-                        Neighbor(0, 0, false),
-                    ],
-                }]),
-            );
-            let vertex_star = VertexStar::new(Point(0.,0.), 0, false, rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 0) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(1. * PI / 3. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 1) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(-0.5, s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(1. * PI / 3. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 2) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(-0.5, -s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(1. * PI / 3. + rotation), neighbor_vertex_star.rotation);
-
-
-            let tiling = Tiling::new(
-                String::from("3.12.12"),
-                Config(vec![Vertex {
-                    components: vec![
-                        Component(triangle.clone(), 0),
-                        Component(dodecagon.clone(), 0),
-                        Component(dodecagon.clone(), 0),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 1, false),
-                        Neighbor(0, 0, false),
-                        Neighbor(0, 2, false),
-                    ],
-                }]),
-            );
-            let vertex_star = VertexStar::new(Point(0.,0.), 0, false, rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 0) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(2. * PI / 3. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 1) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(0.5, s32).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(240. / 360. * TAU + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 2) { None => return assert!(false), Some(vs) => vs };
-            let angle = 210. / 360. * TAU;
-            assert_eq!(Point(angle.cos(), angle.sin()).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(false, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(PI + rotation), neighbor_vertex_star.rotation);
-
-
-            let tiling = Tiling::new(
-                String::from("4.6.12"),
-                Config(vec![Vertex {
-                    components: vec![
-                        Component(dodecagon.clone(), 0),
-                        Component(hexagon.clone(), 0),
-                        Component(square.clone(), 0),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 0, true),
-                        Neighbor(0, 1, true),
-                        Neighbor(0, 2, true),
-                    ],
-                }]),
-            );
-            let vertex_star = VertexStar::new(Point(0.,0.), 0, false, rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 0) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(1., 0.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(true, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(PI + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 1) { None => return assert!(false), Some(vs) => vs };
-            let angle = 150. / 360. * TAU;
-            assert_eq!(Point(angle.cos(), angle.sin()).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(true, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(2. * PI / 3. + rotation), neighbor_vertex_star.rotation);
-
-            let neighbor_vertex_star = match vertex_star.get_neighbor(&tiling, 2) { None => return assert!(false), Some(vs) => vs };
-            assert_eq!(Point(0., -1.).transform(&rotate), neighbor_vertex_star.point);
-            assert_eq!(true, neighbor_vertex_star.parity);
-            approx_eq!(f64, rad(0. + rotation), neighbor_vertex_star.rotation);
+            println!("{}", tiling_4_6_12.name);
+            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 0, x, true, to_rad(180.));
+            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(150.))), true, to_rad(120.));
+            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(270.))), true, to_rad(0.));
+            println!();
         }
     }
 
