@@ -1,12 +1,7 @@
-use crate::tile::ProtoTile;
+use crate::tile::regular_polygon;
 use crate::tiling::{
     config::{Component, Config, Neighbor, Vertex},
     Tiling,
-};
-use geometry::{reduce_transforms, Euclid, Generator, Point, Transformable};
-use std::{
-    f64::consts::{PI, TAU},
-    iter,
 };
 
 pub fn _3_3_3_3_3_3() -> Tiling {
@@ -118,40 +113,4 @@ pub fn _4_6_12() -> Tiling {
             ],
         }]),
     )
-}
-
-pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
-    let n = num_sides as f64;
-    let centroid_angle_of_inclination = PI * (0.5 - 1. / n);
-    let radius = side_length / 2. / centroid_angle_of_inclination.cos();
-    let centroid = Point(
-        radius * centroid_angle_of_inclination.cos(),
-        radius * centroid_angle_of_inclination.sin(),
-    );
-
-    let affine = reduce_transforms(vec![
-        &Euclid::Translate((-centroid).values()),
-        &Euclid::Rotate(TAU / n),
-        &Euclid::Translate(centroid.values()),
-    ]);
-
-    let mut generator = Generator::new(affine);
-
-    let proto_tile = ProtoTile {
-        points: iter::repeat(Point(0., 0.))
-            .take(num_sides)
-            .enumerate()
-            .map(|(i, point)| point.transform(&generator(i)))
-            .collect(),
-        flipped: false,
-    };
-
-    proto_tile.assert_angles(
-        iter::repeat(2. * centroid_angle_of_inclination)
-            .take(num_sides)
-            .collect(),
-    );
-    proto_tile.assert_sides(iter::repeat(side_length).take(num_sides).collect());
-
-    proto_tile
 }

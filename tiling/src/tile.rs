@@ -1,10 +1,11 @@
 use common::{approx_eq, hash_float, rad, rev_iter};
-use geometry::{Point, Transform, Transformable};
+use geometry::{reduce_transforms, Euclid, Generator, Point, Transform, Transformable};
 use itertools::izip;
 use std::{
     collections::VecDeque,
-    f64::consts::TAU,
+    f64::consts::{PI, TAU},
     hash::{Hash, Hasher},
+    iter,
 };
 
 pub struct ProtoTile {
@@ -225,7 +226,10 @@ impl Tile {
     }
 
     pub fn closest_edge(&self, point: &Point) -> (Point, Point) {
-        let edges = izip!(self.points.iter(), self.points.iter().skip(1).chain(self.points.first()));
+        let edges = izip!(
+            self.points.iter(),
+            self.points.iter().skip(1).chain(self.points.first())
+        );
         let mut min = f64::MAX;
         let mut closest_edge = (self.points.get(0).unwrap(), self.points.get(1).unwrap());
         for (start, stop) in edges {
@@ -279,6 +283,42 @@ impl std::fmt::Display for Tile {
     }
 }
 
+pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
+    let n = num_sides as f64;
+    let centroid_angle_of_inclination = PI * (0.5 - 1. / n);
+    let radius = side_length / 2. / centroid_angle_of_inclination.cos();
+    let centroid = Point(
+        radius * centroid_angle_of_inclination.cos(),
+        radius * centroid_angle_of_inclination.sin(),
+    );
+
+    let affine = reduce_transforms(vec![
+        &Euclid::Translate((-centroid).values()),
+        &Euclid::Rotate(TAU / n),
+        &Euclid::Translate(centroid.values()),
+    ]);
+
+    let mut generator = Generator::new(affine);
+
+    let proto_tile = ProtoTile {
+        points: iter::repeat(Point(0., 0.))
+            .take(num_sides)
+            .enumerate()
+            .map(|(i, point)| point.transform(&generator(i)))
+            .collect(),
+        flipped: false,
+    };
+
+    proto_tile.assert_angles(
+        iter::repeat(2. * centroid_angle_of_inclination)
+            .take(num_sides)
+            .collect(),
+    );
+    proto_tile.assert_sides(iter::repeat(side_length).take(num_sides).collect());
+
+    proto_tile
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,7 +326,7 @@ mod tests {
 
     #[test]
     fn test_tile_closest_edge() {
-        let square = Tile::new(ProtoTile::new(vec![(0.,0.),(1.,0.),(1.,1.),(0.,1.)]));
+        let square = Tile::new(ProtoTile::new(vec![(0., 0.), (1., 0.), (1., 1.), (0., 1.)]));
 
         let edge = square.closest_edge(&Point::new((0.5, -0.5)));
         assert_eq!(Point(0., 0.), edge.0);
@@ -303,6 +343,5 @@ mod tests {
         let edge = square.closest_edge(&Point::new((-0.5, 0.5)));
         assert_eq!(Point(0., 1.), edge.0);
         assert_eq!(Point(0., 0.), edge.1);
-
     }
 }
