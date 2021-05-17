@@ -1,4 +1,4 @@
-import { init, set_tiling, step } from "cellular-automata";
+import { click, init, set_tiling } from "cellular-automata";
 
 const canvas = document.getElementById("canvas");
 
@@ -7,15 +7,7 @@ let edges = [];
 
 global.canvas = canvas;
 global.set_tiling = (tiling_type) => set_tiling(canvas, tiling_type);
-global.step = (canvas, edge_index) => {
-  const result = step(canvas, edge_index);
-  if (typeof result === "string") {
-    const vals = JSON.parse(result);
-    point = vals.vertex_star_point;
-    edges = vals.edges.map(edge => edge.map(point => point.map(num => Math.round(num * 1000) / 1000)));
-  }
-  return result;
-};
+global.click = click;
 
 /** Main entry point */
 export function main() {
@@ -39,4 +31,10 @@ function setupCanvas() {
   canvas.style.height = size / aspectRatio + "px";
   canvas.width = size;
   canvas.height = size / aspectRatio;
+  canvas.addEventListener("click", ({ clientX, clientY }) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) / (rect.right - rect.left) * canvas.width;
+    const y = (clientY - rect.top) / (rect.bottom - rect.top) * canvas.height;
+    console.log(click(canvas, x, y));
+  }, false);
 }

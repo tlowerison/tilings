@@ -1,7 +1,9 @@
+use float_cmp::ApproxEq;
 use itertools;
 use num_traits::{cast::NumCast, Float};
 use std::{
     collections::hash_map::DefaultHasher,
+    f64::consts::TAU,
     hash::{Hash, Hasher},
 };
 
@@ -71,6 +73,11 @@ pub fn hash_float<F: Float>(f: F, decimal_precision: u32) -> i32 {
         .round()
         .to_i32()
         .unwrap()
+}
+
+pub fn rad(f: f64) -> f64 {
+    let rad = (TAU + (f % TAU)) % TAU;
+    if rad.approx_eq(TAU, DEFAULT_F64_MARGIN) { 0. } else { rad }
 }
 
 // rev_iter returns a conditionally reversed iterator

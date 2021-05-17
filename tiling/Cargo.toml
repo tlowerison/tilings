@@ -10,4 +10,5 @@ edition = "2018"
 common = { path = "../common" }
 float-cmp = "0.8.0"
 geometry = { path = "../geometry" }
+indexmap = "1.6.2"
 itertools = "0.10.0"

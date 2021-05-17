@@ -13,10 +13,11 @@ fi
 
 cd wasm
 if [ "${CONFIG}" = "release" ]; then
-    wasm-pack build
+    wasm-pack build --out-dir ../www/pkg --release
 else
-    wasm-pack build --release
+    wasm-pack build --out-dir ../www/pkg
 fi
 
 cd ../www
-yarn && yarn start
+yarn add ./pkg
+yarn start

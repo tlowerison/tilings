@@ -1,4 +1,4 @@
-use common::{approx_eq, hash_float, rev_iter};
+use common::{approx_eq, hash_float, rad, rev_iter};
 use geometry::{Point, Transform, Transformable};
 use itertools::izip;
 use std::{
@@ -66,8 +66,8 @@ impl ProtoTile {
                 self
             ),
         };
-        let angle = (point1 - point).arg() - (point2 - point).arg();
-        (if self.flipped { TAU - angle } else { angle } + TAU) % TAU
+        let angle = Point::angle(point1, point, point2);
+        rad(if self.flipped { TAU - angle } else { angle })
     }
 
     // assert_angles asserts that all angles equal those provided
@@ -211,7 +211,7 @@ impl std::fmt::Display for ProtoTile {
 
 #[derive(Clone)]
 pub struct Tile {
-    pub proto_tile: ProtoTile,
+    pub points: Vec<Point>,
     pub centroid: Point,
 }
 
@@ -219,9 +219,34 @@ impl Tile {
     pub fn new(proto_tile: ProtoTile) -> Tile {
         let centroid = proto_tile.centroid();
         Tile {
-            proto_tile,
             centroid,
+            points: proto_tile.points.into_iter().collect::<Vec<Point>>(),
         }
+    }
+
+    pub fn closest_edge(&self, point: &Point) -> (Point, Point) {
+        let edges = izip!(self.points.iter(), self.points.iter().skip(1).chain(self.points.first()));
+        let mut min = f64::MAX;
+        let mut closest_edge = (self.points.get(0).unwrap(), self.points.get(1).unwrap());
+        for (start, stop) in edges {
+            // Consider the line extending the edge, parameterized as start + t * (stop - start).
+            // We find projection of point onto the line.
+            // It falls where t = [(point-start) . (stop-start)] / |stop-start|^2
+            // Clamp t in [0,1] to handle points outside the edge.
+            let edge = stop - start;
+            let t = ((point - start).dot(&edge) / edge.norm_squared()).clamp(0., 1.);
+            let projection = start + &edge.mul(t);
+            let distance = (point - &projection).norm();
+            if distance < min {
+                min = distance;
+                closest_edge = (start, stop);
+            }
+        }
+        (closest_edge.0.clone(), closest_edge.1.clone())
+    }
+
+    pub fn size(&self) -> usize {
+        self.points.len()
     }
 }
 
@@ -237,5 +262,47 @@ impl std::hash::Hash for Tile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         hash_float(self.centroid.0, 2).hash(state);
         hash_float(self.centroid.1, 2).hash(state);
+    }
+}
+
+impl std::fmt::Display for Tile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.points
+                .iter()
+                .map(|point| format!("{}", point))
+                .collect::<Vec<String>>()
+                .join(",")
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use geometry::Point;
+
+    #[test]
+    fn test_tile_closest_edge() {
+        let square = Tile::new(ProtoTile::new(vec![(0.,0.),(1.,0.),(1.,1.),(0.,1.)]));
+
+        let edge = square.closest_edge(&Point::new((0.5, -0.5)));
+        assert_eq!(Point(0., 0.), edge.0);
+        assert_eq!(Point(1., 0.), edge.1);
+
+        let edge = square.closest_edge(&Point::new((1.5, 0.5)));
+        assert_eq!(Point(1., 0.), edge.0);
+        assert_eq!(Point(1., 1.), edge.1);
+
+        let edge = square.closest_edge(&Point::new((0.5, 1.5)));
+        assert_eq!(Point(1., 1.), edge.0);
+        assert_eq!(Point(0., 1.), edge.1);
+
+        let edge = square.closest_edge(&Point::new((-0.5, 0.5)));
+        assert_eq!(Point(0., 1.), edge.0);
+        assert_eq!(Point(0., 0.), edge.1);
+
     }
 }

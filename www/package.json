@@ -9,7 +9,8 @@
     "start": "webpack-dev-server"
   },
   "dependencies": {
-    "cellular-automata": "file:../pkg"
+    "cellular-automata": "file:./pkg",
+    "wasm": "./pkg"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^5.0.0",

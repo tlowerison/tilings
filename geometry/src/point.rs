@@ -2,11 +2,10 @@ use crate::{
     affine::{Affine, IDENTITY_AFFINE},
     transform::{Transform, Transformable},
 };
-use common::{fmt_float, DEFAULT_F64_MARGIN};
+use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
 use float_cmp::ApproxEq;
 use num_traits::cast::NumCast;
 use std::{
-    f64::consts::TAU,
     hash::{Hash, Hasher},
     ops::{Add, Neg, Sub},
 };
@@ -15,6 +14,7 @@ pub const ORIGIN: Point = Point(0., 0.);
 
 pub const DISPLAY_PRECISION: u32 = 2;
 
+#[derive(Debug)]
 pub struct Point(pub f64, pub f64);
 
 impl Point {
@@ -22,8 +22,12 @@ impl Point {
         Point(values.0, values.1)
     }
 
+    pub fn angle(a: &Point, b: &Point, c: &Point) -> f64 {
+        rad((a - b).arg() - (c - b).arg())
+    }
+
     pub fn arg(&self) -> f64 {
-        (self.1.atan2(self.0) + TAU) % TAU
+        rad(self.1.atan2(self.0))
     }
 
     pub fn neg(&self) -> Point {
@@ -34,8 +38,16 @@ impl Point {
         self.0 * other.0 + self.1 * other.1
     }
 
+    pub fn mul(&self, val: f64) -> Point {
+        Point(self.0 * val, self.1 * val)
+    }
+
     pub fn norm(&self) -> f64 {
-        (self.0.powi(2) + self.1.powi(2)).sqrt()
+        self.norm_squared().sqrt()
+    }
+
+    pub fn norm_squared(&self) -> f64 {
+        self.0.powi(2) + self.1.powi(2)
     }
 
     pub fn values(&self) -> (f64, f64) {
@@ -151,6 +163,11 @@ mod tests {
     #[test]
     fn test_point_norm() {
         approx_eq!(f64, 5., Point(3., 4.).norm());
+    }
+
+    #[test]
+    fn test_point_norm_squared() {
+        approx_eq!(f64, 25., Point(3., 4.).norm_squared());
     }
 
     #[test]

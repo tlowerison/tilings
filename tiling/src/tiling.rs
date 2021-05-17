@@ -1,42 +1,36 @@
 use crate::tile::{ProtoTile, Tile};
-use common::{approx_eq, fmt_float};
+use common::{approx_eq, fmt_float, rad};
 use geometry::{Euclid, Point, Transformable, ORIGIN};
 use itertools::{izip, Itertools};
 use std::{collections::HashSet, f64::consts::TAU};
 
 // abstract graph - tiling
 
-// ProtoComponent represents a point in a prototile which
-// is a member of a vertex star.
-pub struct ProtoComponent {
-    pub index: usize,
-    pub proto_tile: ProtoTile,
-    pub point_index: usize,
-}
-
 #[derive(Clone)]
 pub struct ProtoNeighbor {
     pub proto_vertex_star_index: usize,
     pub transform: VertexStarTransform,
     pub neighbor_index: usize,
+    pub forward_tile_index: usize,
+    pub reverse_tile_index: usize,
 }
 
 pub struct ProtoVertexStar {
     pub index: usize,
-    pub proto_components: Vec<ProtoComponent>,
+    pub proto_tiles: Vec<ProtoTile>,
     pub proto_neighbors: Vec<ProtoNeighbor>, // proto_neighbors[i].transform.translate == proto_components[i].proto_tile.points[i+1]
 }
 
 #[derive(Clone)]
 pub struct VertexStarTransform {
-    pub flip: bool,
+    pub parity: bool,
     pub translate: (f64, f64),
     pub rotate: f64,
 }
 
 impl ProtoVertexStar {
     pub fn size(&self) -> usize {
-        self.proto_components.len()
+        self.proto_tiles.len()
     }
 
     pub fn index(&self, index: usize, delta: isize) -> usize {
@@ -113,47 +107,37 @@ impl Tiling {
             .collect();
 
         let mut proto_vertex_stars = izip!(config.0.iter(), all_proto_tiles.iter()).enumerate().map(|(i,(vertex, proto_tiles))| {
-            let proto_components = {
-                let mut proto_components: Vec<ProtoComponent> = izip!(vertex.components.iter(), proto_tiles.iter()).enumerate().map(|(j,(component, proto_tile))| ProtoComponent {
-                    proto_tile: proto_tile.clone(),
-                    index: j,
-                    point_index: component.1,
-                }).collect();
-                proto_components.shrink_to_fit();
-                proto_components
+            let proto_tiles = {
+                let mut proto_tiles: Vec<ProtoTile> = proto_tiles.iter().map(|proto_tile| proto_tile.clone()).collect();
+                proto_tiles.shrink_to_fit();
+                proto_tiles
             };
 
-            let proto_neighbors = {
-                let mut proto_neighbors: Vec<ProtoNeighbor> = izip!(vertex.neighbors.iter(), proto_components.iter()).map(|(neighbor, proto_component)| -> ProtoNeighbor {
-                    let edge_point = proto_component.proto_tile.points.get(1).unwrap();
+            let mut proto_neighbors = izip!(vertex.neighbors.iter(), proto_tiles.iter())
+                .enumerate()
+                .map(|(i, (neighbor, proto_tile))| {
+                    let edge_point = proto_tile.points.get(1).unwrap();
                     let neighbor_edge_point = all_proto_tiles.get(neighbor.0).unwrap().get(neighbor.1).unwrap().points.get(1).unwrap();
                     if neighbor.0 >= config.0.len() {
                         panic!("tiling does not have vertex star {} but vertex star {} lists it as a neighbor", neighbor.0, i);
-                    }
-                    println!("{} {}", proto_component.proto_tile, all_proto_tiles.get(neighbor.0).unwrap().get(neighbor.1).unwrap());
-                    println!("{} {}", edge_point.neg(), neighbor_edge_point);
-                    println!();
-                    let mut rotate = edge_point.neg().arg() - neighbor_edge_point.arg();
-                    if (rotate.abs() % TAU) < 0.0001 {
-                        rotate = 0.
                     }
                     ProtoNeighbor {
                         proto_vertex_star_index: neighbor.0,
                         neighbor_index: neighbor.1,
                         transform: VertexStarTransform {
-                            flip: neighbor.2,
+                            parity: neighbor.2,
                             translate: edge_point.values(),
-                            rotate,
-                        }
+                            rotate: rad(edge_point.neg().arg() - neighbor_edge_point.arg()),
+                        },
+                        forward_tile_index: i,
+                        reverse_tile_index: (i + proto_tiles.len() - 1) % proto_tiles.len(),
                     }
-                }).collect();
-                proto_neighbors.shrink_to_fit();
-                proto_neighbors
-            };
-
+                })
+                .collect_vec();
+            proto_neighbors.shrink_to_fit();
             ProtoVertexStar {
                 index: i,
-                proto_components,
+                proto_tiles,
                 proto_neighbors,
             }
         }).collect::<Vec<ProtoVertexStar>>();
@@ -176,12 +160,6 @@ impl Tiling {
 
 // Display
 
-impl std::fmt::Display for ProtoComponent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "- {}", self.proto_tile)
-    }
-}
-
 impl std::fmt::Display for ProtoNeighbor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -194,12 +172,12 @@ impl std::fmt::Display for ProtoNeighbor {
 
 impl std::fmt::Display for ProtoVertexStar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match write!(f, "{}-components:\n", self.index) {
+        match write!(f, "-components:\n") {
             Ok(_) => {}
             Err(e) => return Err(e),
         }
-        for proto_component in self.proto_components.iter() {
-            match write!(f, "{}\n", proto_component) {
+        for proto_tile in self.proto_tiles.iter() {
+            match write!(f, "{}\n", proto_tile) {
                 Ok(_) => {}
                 Err(e) => return Err(e),
             }
@@ -208,7 +186,7 @@ impl std::fmt::Display for ProtoVertexStar {
             Ok(_) => {}
             Err(e) => return Err(e),
         }
-        match write!(f, "{}-neighbors:\n", self.index) {
+        match write!(f, "neighbors:\n") {
             Ok(_) => {}
             Err(e) => return Err(e),
         }
@@ -229,11 +207,11 @@ impl std::fmt::Display for Tiling {
             Ok(_) => {}
             Err(e) => return Err(e),
         };
-        for proto_vertex_star in self.proto_vertex_stars.iter() {
+        for (i, proto_vertex_star) in self.proto_vertex_stars.iter().enumerate() {
             match write!(
                 f,
                 "adjacencies:\n{}: {}",
-                proto_vertex_star.index,
+                i,
                 proto_vertex_star
                     .proto_neighbors
                     .iter()
@@ -276,8 +254,8 @@ impl std::fmt::Display for VertexStarTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{flip: {}, translate: {}, rotate: {}}}",
-            self.flip,
+            "{{parity: {}, translate: {}, rotate: {}}}",
+            self.parity,
             Point::new(self.translate),
             fmt_float(self.rotate, 3)
         )
