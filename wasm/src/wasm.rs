@@ -17,6 +17,7 @@ pub enum TilingType {
     _4_4_4_4,
     _6_6_6,
     _3_12_12,
+    _4_6_12,
 }
 
 impl TilingType {
@@ -26,6 +27,7 @@ impl TilingType {
             TilingType::_4_4_4_4 => tiling::_4_4_4_4(),
             TilingType::_6_6_6 => tiling::_6_6_6(),
             TilingType::_3_12_12 => tiling::_3_12_12(),
+            TilingType::_4_6_12 => tiling::_4_6_12(),
         }
     }
 }
@@ -36,7 +38,7 @@ pub struct Config {
 }
 
 static mut CONFIG: Config = Config {
-    tiling_type: TilingType::_6_6_6,
+    tiling_type: TilingType::_4_4_4_4,
 };
 
 struct State {
@@ -65,12 +67,15 @@ fn to_canvas(point: &Point) -> (i32, i32) {
 pub fn init (canvas: HtmlCanvasElement) -> JsValue {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     unsafe {
-        set_tiling(canvas.clone(), CONFIG.tiling_type);
+        let js_value = set_tiling(canvas.clone(), CONFIG.tiling_type);
+        if js_value != JsValue::TRUE {
+            return js_value
+        }
         match &mut STATE {
             None => JsValue::FALSE,
             Some(state) => {
                 match draw(canvas, state.patch.drain_tile_diffs()) {
-                    None => JsValue::from_str(&String::from(format!("{}", state.patch))),
+                    None => JsValue::TRUE,
                     Some(js_value) => js_value,
                 }
             }
@@ -79,7 +84,7 @@ pub fn init (canvas: HtmlCanvasElement) -> JsValue {
 }
 
 #[wasm_bindgen]
-pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
+pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) -> JsValue {
     unsafe {
         let initialized = match STATE { Some(_) => true, None => false };
         if !initialized || CONFIG.tiling_type != tiling_type {
@@ -92,8 +97,7 @@ pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
                 },
             };
 
-            let patch = Patch::new(tiling);
-            let cur_tile_centroid = patch.tiles.values().collect::<Vec<&Tile>>().get(0).unwrap().centroid.clone();
+            let (patch, cur_tile_centroid) = match Patch::new(tiling) { Ok(pair) => pair, Err(s) => return JsValue::from_str(&s) };
             STATE = Some(State {
                 coloring: Coloring::new(&patch.tiling),
                 cur_tile_centroid,
@@ -101,6 +105,7 @@ pub fn set_tiling(canvas: HtmlCanvasElement, tiling_type: TilingType) {
             });
         }
     }
+    JsValue::TRUE
 }
 
 #[wasm_bindgen]
@@ -109,12 +114,12 @@ pub fn click(canvas: HtmlCanvasElement, x: f64, y: f64) ->  JsValue {
         match &mut STATE {
             Some(state) => {
                 let point = from_canvas(x, y);
-                match state.patch.add_component_by_point(&state.cur_tile_centroid, &point) {
+                match state.patch.insert_adjacent_tile_by_point(&state.cur_tile_centroid, point) {
                     Ok(centroid) => {
                         state.cur_tile_centroid = centroid;
                         match draw(canvas, state.patch.drain_tile_diffs()) {
                             Some(js_value) => js_value,
-                            None => JsValue::from_str(&String::from(format!("{}\n{}", state.cur_tile_centroid, state.patch))),
+                            None => JsValue::TRUE,
                         }
                     },
                     Err(e) => JsValue::from_str(&String::from(format!("{}", e))),
@@ -132,10 +137,13 @@ fn draw(canvas: HtmlCanvasElement, tile_diffs: HashMap<Tile, TileDiff>) -> Optio
             Some(state) => {
                 let mut backend = CanvasBackend::with_canvas_object(canvas).unwrap();
                 for (tile, tile_diff) in tile_diffs.into_iter() {
-                    let mut points = tile.proto_tile.points.iter().map(|point| to_canvas(point)).collect::<Vec<(i32,i32)>>();
+                    let mut points = tile.points.iter().map(|point| to_canvas(point)).collect::<Vec<(i32,i32)>>();
                     let result = match tile_diff {
                         TileDiff::Added => {
-                            backend.fill_polygon(points.clone(), state.coloring.0.get(&tile.proto_tile).unwrap_or(&BLACK));
+                            match backend.fill_polygon(points.clone(), state.coloring.0.get(&tile.size()).unwrap_or(&BLACK)) {
+                                Ok(_) => {},
+                                Err(e) => return Some(JsValue::from_str(&format!("{}", e))),
+                            }
                             points.push(points.get(0).unwrap().clone());
                             backend.draw_path(points, &BLACK)
                         },

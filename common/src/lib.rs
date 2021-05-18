@@ -59,7 +59,7 @@ pub fn fmt_float<F: Float>(f: F, decimal_precision: u32) -> String {
             String::from("")
         } else {
             format!(
-                "{:0<precision$}",
+                "{:0>precision$}",
                 (i % pow).abs(),
                 precision = (decimal_precision as usize)
             )
@@ -83,8 +83,8 @@ pub fn rad(f: f64) -> f64 {
 
 // rev_iter returns a conditionally reversed iterator
 pub fn rev_iter<I>(
-    iter: impl DoubleEndedIterator<Item = I>,
     should_reverse: bool,
+    iter: impl DoubleEndedIterator<Item = I>,
 ) -> impl Iterator<Item = I> {
     if !should_reverse {
         itertools::Either::Left(iter)
@@ -106,6 +106,12 @@ mod tests {
 
     #[test]
     fn test_fmt_float() {
+        let float = NumCast::from(PI / 3.).unwrap();
+        assert_eq!("1.047", fmt_float::<f32>(float, 3));
+
+        let float = NumCast::from(PI / 3.).unwrap();
+        assert_eq!("1.047", fmt_float::<f64>(float, 3));
+
         let float = NumCast::from(PI).unwrap();
 
         assert_eq!("3.", fmt_float::<f32>(float, 0));
@@ -172,9 +178,9 @@ mod tests {
 
     #[test]
     fn test_rev_iter() {
-        let mut iter = rev_iter(0..10, false);
+        let mut iter = rev_iter(false, 0..10);
         assert_eq!(0_usize, iter.next().unwrap());
-        let mut iter = rev_iter(0..10, true);
+        let mut iter = rev_iter(true, 0..10);
         assert_eq!(9_usize, iter.next().unwrap());
     }
 }

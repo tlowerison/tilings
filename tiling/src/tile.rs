@@ -8,9 +8,10 @@ use std::{
     iter,
 };
 
+#[derive(Clone)]
 pub struct ProtoTile {
     pub points: VecDeque<Point>,
-    pub flipped: bool,
+    pub parity: bool,
 }
 
 impl ProtoTile {
@@ -23,7 +24,7 @@ impl ProtoTile {
         points.shrink_to_fit();
         ProtoTile {
             points,
-            flipped: false,
+            parity: false,
         }
     }
 
@@ -68,7 +69,7 @@ impl ProtoTile {
             ),
         };
         let angle = Point::angle(point1, point, point2);
-        rad(if self.flipped { TAU - angle } else { angle })
+        rad(if self.parity { TAU - angle } else { angle })
     }
 
     // assert_angles asserts that all angles equal those provided
@@ -147,38 +148,29 @@ impl ProtoTile {
 
 impl Eq for ProtoTile {}
 
+// hash angles up to two decimals
+impl Hash for ProtoTile {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for i in rev_iter(self.parity, 0..self.size()) {
+            hash_float(self.angle(i), 2).hash(state);
+        }
+    }
+}
+
 impl PartialEq for ProtoTile {
     fn eq(&self, other: &Self) -> bool {
         if self.size() != other.size() {
             return false;
         }
         for (self_i, other_i) in izip!(
-            rev_iter(0..self.size(), self.flipped),
-            rev_iter(0..other.size(), other.flipped)
+            rev_iter(self.parity, 0..self.size()),
+            rev_iter(other.parity, 0..other.size())
         ) {
             if hash_float(self.angle(self_i), 4) != hash_float(other.angle(other_i), 4) {
                 return false;
             }
         }
         return true;
-    }
-}
-
-// hash angles up to two decimals
-impl Hash for ProtoTile {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        for i in rev_iter(0..self.size(), self.flipped) {
-            hash_float(self.angle(i), 2).hash(state);
-        }
-    }
-}
-
-impl Clone for ProtoTile {
-    fn clone(&self) -> Self {
-        ProtoTile {
-            points: self.points.clone(),
-            flipped: self.flipped,
-        }
     }
 }
 
@@ -191,7 +183,7 @@ impl<'a> Transformable<'a> for ProtoTile {
                 .iter()
                 .map(|point| point.transform(&affine))
                 .collect(),
-            flipped: self.flipped ^ affine.is_flip(),
+            parity: self.parity ^ affine.is_flip(),
         }
     }
 }
@@ -214,13 +206,15 @@ impl std::fmt::Display for ProtoTile {
 pub struct Tile {
     pub points: Vec<Point>,
     pub centroid: Point,
+    pub parity: bool,
 }
 
 impl Tile {
-    pub fn new(proto_tile: ProtoTile) -> Tile {
+    pub fn new(proto_tile: ProtoTile, parity: bool) -> Tile {
         let centroid = proto_tile.centroid();
         Tile {
             centroid,
+            parity,
             points: proto_tile.points.into_iter().collect::<Vec<Point>>(),
         }
     }
@@ -246,7 +240,11 @@ impl Tile {
                 closest_edge = (start, stop);
             }
         }
-        (closest_edge.0.clone(), closest_edge.1.clone())
+        if !self.parity {
+            (closest_edge.0.clone(), closest_edge.1.clone())
+        } else {
+            (closest_edge.1.clone(), closest_edge.0.clone())
+        }
     }
 
     pub fn size(&self) -> usize {
@@ -256,16 +254,16 @@ impl Tile {
 
 impl Eq for Tile {}
 
-impl PartialEq for Tile {
-    fn eq(&self, other: &Self) -> bool {
-        self.centroid == other.centroid
-    }
-}
-
-impl std::hash::Hash for Tile {
+impl Hash for Tile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         hash_float(self.centroid.0, 2).hash(state);
         hash_float(self.centroid.1, 2).hash(state);
+    }
+}
+
+impl PartialEq for Tile {
+    fn eq(&self, other: &Self) -> bool {
+        self.centroid == other.centroid
     }
 }
 
@@ -306,7 +304,7 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
             .enumerate()
             .map(|(i, point)| point.transform(&generator(i)))
             .collect(),
-        flipped: false,
+        parity: false,
     };
 
     proto_tile.assert_angles(
@@ -326,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_tile_closest_edge() {
-        let square = Tile::new(ProtoTile::new(vec![(0., 0.), (1., 0.), (1., 1.), (0., 1.)]));
+        let square = Tile::new(ProtoTile::new(vec![(0., 0.), (1., 0.), (1., 1.), (0., 1.)]), false);
 
         let edge = square.closest_edge(&Point::new((0.5, -0.5)));
         assert_eq!(Point(0., 0.), edge.0);

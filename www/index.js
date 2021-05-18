@@ -19,8 +19,9 @@ export function main() {
 /** Add event listeners. */
 function setupUI() {
   window.addEventListener("resize", setupCanvas);
-  document.getElementById("step").onclick = () => global.step(canvas, Math.floor(Math.random() * edges.length));
 }
+
+let locked = false;
 
 /** Setup canvas to properly handle high DPI and redraw current plot. */
 function setupCanvas() {
@@ -31,10 +32,17 @@ function setupCanvas() {
   canvas.style.height = size / aspectRatio + "px";
   canvas.width = size;
   canvas.height = size / aspectRatio;
-  canvas.addEventListener("click", ({ clientX, clientY }) => {
+
+  canvas.addEventListener("mousemove", ({ clientX, clientY }) => {
     const rect = canvas.getBoundingClientRect();
     const x = (clientX - rect.left) / (rect.right - rect.left) * canvas.width;
     const y = (clientY - rect.top) / (rect.bottom - rect.top) * canvas.height;
-    console.log(click(canvas, x, y));
+    (async () => {
+      if (!locked) {
+        locked = true;
+        console.log(click(canvas, x, y));
+        locked = false;
+      }
+    })();
   }, false);
 }

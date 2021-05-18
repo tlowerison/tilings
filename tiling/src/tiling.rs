@@ -1,4 +1,4 @@
-use crate::tile::{ProtoTile, Tile};
+use crate::tile::ProtoTile;
 use common::{approx_eq, fmt_float, rad};
 use geometry::{Euclid, Point, Transformable, ORIGIN};
 use itertools::{izip, Itertools};
@@ -53,7 +53,7 @@ pub mod config {
     pub struct Neighbor(
         pub usize, /* proto_vertex_star_index */
         pub usize, /* neighbor_index */
-        pub bool,  /* flipped */
+        pub bool,  /* parity */
     );
 
     pub struct Vertex {
@@ -66,7 +66,7 @@ pub mod config {
 
 pub struct Tiling {
     pub name: String,
-    pub tiles: Vec<Tile>,
+    pub proto_tiles: Vec<ProtoTile>,
     pub proto_vertex_stars: Vec<ProtoVertexStar>,
 }
 
@@ -143,17 +143,17 @@ impl Tiling {
         }).collect::<Vec<ProtoVertexStar>>();
         proto_vertex_stars.shrink_to_fit();
 
-        let mut tiles: HashSet<Tile> = HashSet::default();
+        let mut proto_tiles: HashSet<ProtoTile> = HashSet::default();
         for vertex in config.0.iter() {
             for component in vertex.components.iter() {
-                tiles.insert(Tile::new(component.0.clone()));
+                proto_tiles.insert(component.0.clone());
             }
         }
 
         Tiling {
             name,
             proto_vertex_stars,
-            tiles: tiles.into_iter().collect_vec(),
+            proto_tiles: proto_tiles.into_iter().collect_vec(),
         }
     }
 }
