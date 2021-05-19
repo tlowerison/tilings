@@ -5,6 +5,7 @@ members = [
   "geometry",
   "simulation",
   "tiling",
+  "tilings",
   "wasm",
 ]
 

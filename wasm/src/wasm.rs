@@ -1,12 +1,12 @@
 extern crate console_error_panic_hook;
 
 use crate::coloring::Coloring;
-use crate::tilings;
 use geometry::*;
 use plotters::prelude::*;
 use plotters_canvas::CanvasBackend;
 use std::{collections::HashMap, panic};
 use tiling::{self, Patch, Tile, Tiling, TileDiff};
+use tilings;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -23,6 +23,7 @@ pub enum TilingType {
     _3_3_4_3_4 = "3.3.4.3.4",
     _3_3_3_4_4 = "3.3.3.4.4",
     _3_3_3_3_6 = "3.3.3.3.6",
+    _3_3_3_3_3_3__3_3_4_3_4 = "3.3.3.3.3.3;3.3.4.3.4",
     Custom = "custom", // be careful that input points are accurate to as many digits as possible, otherwise tiling will fail
 }
 
@@ -39,12 +40,13 @@ impl TilingType {
             TilingType::_3_3_4_3_4 => tilings::_3_3_4_3_4(),
             TilingType::_3_3_3_4_4 => tilings::_3_3_3_4_4(),
             TilingType::_3_3_3_3_6 => tilings::_3_3_3_3_6(),
+            TilingType::_3_3_3_3_3_3__3_3_4_3_4 => tilings::_3_3_3_3_3_3__3_3_4_3_4(),
             TilingType::Custom => {
                 if !config_str.is_string() {
                     return Err(String::from("missing custom config"))
                 }
                 let config_str = match config_str.as_string() { None => return Err(String::from("error deserializing config to string")), Some(config_str) => config_str };
-                let config = match tilings::config::deserialize(&config_str) { Ok(c) => c, Err(e) => return Err(e) };
+                let config = match tilings::custom::deserialize(&config_str) { Ok(c) => c, Err(e) => return Err(e) };
                 Tiling::new(config)
             },
             _ => Err(String::from("unknown TilingType")),
@@ -58,7 +60,7 @@ pub struct Config {
 }
 
 static mut CONFIG: Config = Config {
-    tiling_type: TilingType::_6_6_6,
+    tiling_type: TilingType::_3_3_3_3_3_3__3_3_4_3_4,
 };
 
 struct State {

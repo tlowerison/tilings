@@ -947,6 +947,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tilings"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "serde",
+ "serde_json",
+ "tiling",
+]
+
+[[package]]
 name = "time"
 version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -995,6 +1005,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tiling",
+ "tilings",
  "wasm-bindgen",
  "web-sys",
 ]
