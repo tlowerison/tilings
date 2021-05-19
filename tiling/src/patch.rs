@@ -59,7 +59,7 @@ impl VertexStar {
         if !self.parity {
             Some((link_index + self.size() - 1) % self.size())
         } else {
-            Some((link_index + 1) % self.size()) // have had trouble with this line in the past, need to test against a vertex star with more than 3 components
+            Some((link_index + self.size() - 2) % self.size()) // have had trouble with this line in the past, need to test against a vertex star with more than 3 components
         }
     }
 
@@ -273,39 +273,12 @@ mod tests {
     use super::*;
     use crate::tile::regular_polygon;
     use crate::tiling::config::{Component, Config, Neighbor, Vertex};
-    use crate::tilings::*;
     use geometry::Point;
     use std::f64::consts::{PI, TAU};
 
-    #[test]
-    // by link refers to asserting that all of a vertex star's neighbors (i.e. the vertex star's link) are correctly configured
-    fn test_vertex_star_get_neighbor_vertex_star_by_link() {
+    fn get_test_tiling_3_3_3_3_3_3() -> Tiling {
         let triangle = regular_polygon(1., 3);
-        let square = regular_polygon(1., 4);
-        let hexagon = regular_polygon(1., 6);
-        let dodecagon = regular_polygon(1., 12);
-        let x = Point(1., 0.);
-
-        let tiling_4_4_4_4 = Tiling::new(
-            String::from("4.4.4.4"),
-            Config(vec![Vertex {
-                components: vec![
-                    Component(square.clone(), 0),
-                    Component(square.clone(), 1),
-                    Component(square.clone(), 2),
-                    Component(square.clone(), 3),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 2, false),
-                    Neighbor(0, 3, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 1, false),
-                ],
-            }]),
-        );
-
-        let tiling_3_3_3_3_3_3 = Tiling::new(
-            String::from("3.3.3.3.3.3"),
+        Tiling::new(
             Config(vec![Vertex {
                 components: vec![
                     Component(triangle.clone(), 0),
@@ -324,10 +297,32 @@ mod tests {
                     Neighbor(0, 2, false),
                 ],
             }]),
-        );
+        ).expect("couldn't create tiling")
+    }
 
-        let tiling_6_6_6 = Tiling::new(
-            String::from("6.6.6"),
+    fn get_test_tiling_4_4_4_4() -> Tiling {
+        let square = regular_polygon(1., 4);
+        Tiling::new(
+            Config(vec![Vertex {
+                components: vec![
+                    Component(square.clone(), 0),
+                    Component(square.clone(), 1),
+                    Component(square.clone(), 2),
+                    Component(square.clone(), 3),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 2, false),
+                    Neighbor(0, 3, false),
+                    Neighbor(0, 0, false),
+                    Neighbor(0, 1, false),
+                ],
+            }]),
+        ).expect("couldn't create tiling")
+    }
+
+    fn get_test_tiling_6_6_6() -> Tiling {
+        let hexagon = regular_polygon(1., 6);
+        Tiling::new(
             Config(vec![Vertex {
                 components: vec![
                     Component(hexagon.clone(), 0),
@@ -340,10 +335,13 @@ mod tests {
                     Neighbor(0, 0, false),
                 ],
             }]),
-        );
+        ).expect("couldn't create tiling")
+    }
 
-        let tiling_3_12_12 = Tiling::new(
-            String::from("3.12.12"),
+    fn get_test_tiling_3_12_12() -> Tiling {
+        let triangle = regular_polygon(1., 3);
+        let dodecagon = regular_polygon(1., 12);
+        Tiling::new(
             Config(vec![Vertex {
                 components: vec![
                     Component(triangle.clone(), 0),
@@ -356,10 +354,14 @@ mod tests {
                     Neighbor(0, 2, false),
                 ],
             }]),
-        );
+        ).expect("couldn't create tiling")
+    }
 
-        let tiling_4_6_12 = Tiling::new(
-            String::from("4.6.12"),
+    fn get_test_tiling_4_6_12() -> Tiling {
+        let square = regular_polygon(1., 4);
+        let hexagon = regular_polygon(1., 6);
+        let dodecagon = regular_polygon(1., 12);
+        Tiling::new(
             Config(vec![Vertex {
                 components: vec![
                     Component(dodecagon.clone(), 0),
@@ -372,7 +374,30 @@ mod tests {
                     Neighbor(0, 2, true),
                 ],
             }]),
-        );
+        ).expect("couldn't create tiling")
+    }
+
+    fn get_all_test_tilings() -> [Tiling; 5] {
+        [
+            get_test_tiling_4_4_4_4(),
+            get_test_tiling_3_3_3_3_3_3(),
+            get_test_tiling_6_6_6(),
+            get_test_tiling_3_12_12(),
+            get_test_tiling_4_6_12(),
+        ]
+    }
+
+    #[test]
+    // by link refers to asserting that all of a vertex star's neighbors (i.e. the vertex star's link) are correctly configured
+    fn test_vertex_star_get_neighbor_vertex_star_by_link() {
+        let x = Point(1., 0.);
+        let [
+            tiling_4_4_4_4,
+            tiling_3_3_3_3_3_3,
+            tiling_6_6_6,
+            tiling_3_12_12,
+            tiling_4_6_12,
+        ] = get_all_test_tilings();
 
         for rotation in (0..8).map(|i| rad((i as f64) * TAU / 8.)) {
             println!("rotation: {}π", fmt_float(rotation / PI, 2));
@@ -394,7 +419,7 @@ mod tests {
                 approx_eq!(f64, rad(expected_rotation + rotation), neighbor_vertex_star.rotation);
             };
 
-            println!("{}", tiling_4_4_4_4.name);
+            println!("Tiling 4.4.4.4");
             let vertex_star = VertexStar::new(&tiling_4_4_4_4, Point(0.,0.), 0, false, rotation);
             assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
             assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
@@ -402,7 +427,7 @@ mod tests {
             assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 3, x.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
             println!();
 
-            println!("{}", tiling_3_3_3_3_3_3.name);
+            println!("Tiling 3.3.3.3.3.3");
             let vertex_star = VertexStar::new(&tiling_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
             assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
             assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
@@ -412,21 +437,21 @@ mod tests {
             assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 5, x.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
             println!();
 
-            println!("{}", tiling_6_6_6.name);
+            println!("Tiling 6.6.6");
             let vertex_star = VertexStar::new(&tiling_6_6_6, Point(0.,0.), 0, false, rotation);
             assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
             assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
             assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
             println!();
 
-            println!("{}", tiling_3_12_12.name);
+            println!("Tiling 3.12.12");
             let vertex_star = VertexStar::new(&tiling_3_12_12, Point(0.,0.), 0, false, rotation);
             assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, x, false, to_rad(120.));
             assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
             assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
             println!();
 
-            println!("{}", tiling_4_6_12.name);
+            println!("Tiling 4.6.12");
             let vertex_star = VertexStar::new(&tiling_4_6_12, Point(0.,0.), 0, false, rotation);
             assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 0, x, true, to_rad(180.));
             assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(150.))), true, to_rad(120.));
@@ -438,99 +463,14 @@ mod tests {
     #[test]
     // by chain refers to asserting that a sequence of vertex stars, the next accumulated as a neighbor of the previous star, are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_sequence() {
-        let triangle = regular_polygon(1., 3);
-        let square = regular_polygon(1., 4);
-        let hexagon = regular_polygon(1., 6);
-        let dodecagon = regular_polygon(1., 12);
         let x = Point(1., 0.);
-
-        let tiling_4_4_4_4 = Tiling::new(
-            String::from("4.4.4.4"),
-            Config(vec![Vertex {
-                components: vec![
-                    Component(square.clone(), 0),
-                    Component(square.clone(), 1),
-                    Component(square.clone(), 2),
-                    Component(square.clone(), 3),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 2, false),
-                    Neighbor(0, 3, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 1, false),
-                ],
-            }]),
-        );
-
-        let tiling_3_3_3_3_3_3 = Tiling::new(
-            String::from("3.3.3.3.3.3"),
-            Config(vec![Vertex {
-                components: vec![
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 3, false),
-                    Neighbor(0, 4, false),
-                    Neighbor(0, 5, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 1, false),
-                    Neighbor(0, 2, false),
-                ],
-            }]),
-        );
-
-        let tiling_6_6_6 = Tiling::new(
-            String::from("6.6.6"),
-            Config(vec![Vertex {
-                components: vec![
-                    Component(hexagon.clone(), 0),
-                    Component(hexagon.clone(), 0),
-                    Component(hexagon.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 1, false),
-                    Neighbor(0, 2, false),
-                    Neighbor(0, 0, false),
-                ],
-            }]),
-        );
-
-        let tiling_3_12_12 = Tiling::new(
-            String::from("3.12.12"),
-            Config(vec![Vertex {
-                components: vec![
-                    Component(triangle.clone(), 0),
-                    Component(dodecagon.clone(), 0),
-                    Component(dodecagon.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 1, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 2, false),
-                ],
-            }]),
-        );
-
-        let tiling_4_6_12 = Tiling::new(
-            String::from("4.6.12"),
-            Config(vec![Vertex {
-                components: vec![
-                    Component(dodecagon.clone(), 0),
-                    Component(hexagon.clone(), 0),
-                    Component(square.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 0, true),
-                    Neighbor(0, 1, true),
-                    Neighbor(0, 2, true),
-                ],
-            }]),
-        );
+        let [
+            tiling_4_4_4_4,
+            tiling_3_3_3_3_3_3,
+            tiling_6_6_6,
+            tiling_3_12_12,
+            tiling_4_6_12,
+        ] = get_all_test_tilings();
 
         for rotation in (0..8).map(|i| rad((i as f64) * TAU / 8.)) {
             println!("rotation: {}π", fmt_float(rotation / PI, 2));
@@ -560,7 +500,7 @@ mod tests {
                 neighbor_vertex_star
             };
 
-            println!("{}", tiling_4_4_4_4.name);
+            println!("Tiling 4.4.4.4");
             let vertex_star = VertexStar::new(&tiling_4_4_4_4, Point(0.,0.), 0, false, rotation);
             let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
             let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
@@ -568,7 +508,7 @@ mod tests {
             let _nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 3, x.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
             println!();
 
-            println!("{}", tiling_3_3_3_3_3_3.name);
+            println!("Tiling 3.3.3.3.3.3");
             let vertex_star = VertexStar::new(&tiling_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
             let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
             let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
@@ -578,21 +518,21 @@ mod tests {
             let _nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 5, x.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
             println!();
 
-            println!("{}", tiling_6_6_6.name);
+            println!("Tiling 6.6.6");
             let vertex_star = VertexStar::new(&tiling_6_6_6, Point(0.,0.), 0, false, rotation);
             let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
             let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
             let _nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 2, x.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
             println!();
 
-            println!("{}", tiling_3_12_12.name);
+            println!("Tiling 3.12.12");
             let vertex_star = VertexStar::new(&tiling_3_12_12, Point(0.,0.), 0, false, rotation);
             let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, x, false, to_rad(120.));
             let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
             let _nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 2, x.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
             println!();
 
-            println!("{}", tiling_4_6_12.name);
+            println!("Tiling 4.6.12");
             let vertex_star = VertexStar::new(&tiling_4_6_12, Point(0.,0.), 0, false, rotation);
 
             let nvs = vertex_star.get_neighbor_vertex_star(&tiling_4_6_12, 0).unwrap();
@@ -618,7 +558,7 @@ mod tests {
 
     #[test]
     fn test_vertex_star_get_proto_vertex_star() {
-        let tiling = _4_4_4_4();
+        let tiling = get_test_tiling_4_4_4_4();
 
         let proto_vertex_star_index = 0;
         let vertex_star = VertexStar::new(&tiling, Point(0.,0.), 0, false, 0.);
@@ -628,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_vertex_star_get_tile() {
-        let tiling = _4_6_12();
+        let tiling = get_test_tiling_4_6_12();
 
         let vertex_star = VertexStar::new(&tiling, Point(0.,0.), 0, false, 0.);
 
@@ -659,7 +599,7 @@ mod tests {
         assert_eq!(6, tile.size());
         assert_eq!(Point(- 3_f64.sqrt() / 2., 0.5), tile.centroid);
 
-        let tiling = _6_6_6();
+        let tiling = get_test_tiling_6_6_6();
 
         let vertex_star = VertexStar::new(&tiling, Point(1., 0.), 0, false, to_rad(60.));
 
@@ -678,7 +618,7 @@ mod tests {
 
     #[test]
     fn test_vertex_star_mutual_parity() {
-        let tiling = _4_4_4_4();
+        let tiling = get_test_tiling_4_4_4_4();
 
         let vertex_star = VertexStar::new(&tiling, Point(0.,0.), 0, false, 0.);
         assert_eq!(false, vertex_star.mutual_parity(false));
@@ -691,8 +631,7 @@ mod tests {
 
     #[test]
     fn test_patch_insert_adjacent_tile_by_edge() {
-        let tiling = _4_6_12();
-        let (mut patch, mut centroid) = Patch::new(tiling).unwrap();
+        let (mut patch, mut centroid) = Patch::new(get_test_tiling_4_6_12()).unwrap();
         centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(1.30, 1.30)) { Ok(p) => p, Err(e) => { println!("{}", e); return assert!(false) } };
         println!("{}", centroid);
         centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(6.53,-1.31)) { Ok(p) => p, Err(e) => { println!("{}", e); return assert!(false) } };
@@ -704,11 +643,9 @@ mod tests {
         println!("{}", patch);
         println!();
 
-        let tiling = _4_6_12();
-
         let edge = (Point(1. + 3_f64.sqrt() / 2., 0.5), Point(1.5 + 3_f64.sqrt() / 2., 0.5 + 3_f64.sqrt() / 2.));
 
-        let (mut patch, mut centroid) = Patch::new(tiling).unwrap();
+        let (mut patch, mut centroid) = Patch::new(get_test_tiling_4_6_12()).unwrap();
         println!("{}", centroid);
         centroid = match patch.insert_adjacent_tile_by_edge(edge) { Err(_) => return assert!(false), Ok(t) => t };
         println!("{}", centroid);

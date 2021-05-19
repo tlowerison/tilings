@@ -342,4 +342,15 @@ mod tests {
         assert_eq!(Point(0., 1.), edge.0);
         assert_eq!(Point(0., 0.), edge.1);
     }
+
+    // #[test]
+    // fn test_regular_polygon() {
+    //     let triangle = regular_polygon(1., 3);
+    //     let square = regular_polygon(1., 4);
+    //     let hexagon = regular_polygon(1., 6);
+    //     println!("{}", triangle);
+    //     println!("{}", square);
+    //     println!("{}", hexagon);
+    //     assert!(false);
+    // }
 }
