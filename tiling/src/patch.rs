@@ -161,7 +161,7 @@ impl Patch {
         };
 
         match patch.insert_adjacent_tile_by_edge((vertex_point_1, vertex_point_0)) {
-            Ok(centroid) => Ok((patch, centroid)),
+            Ok((centroid, _)) => Ok((patch, centroid)),
             Err(e) => Err(e),
         }
     }
@@ -174,12 +174,12 @@ impl Patch {
         self.tiles.drain().into_iter().map(|(_, tile)| (tile, TileDiff::Removed)).collect()
     }
 
-    pub fn insert_adjacent_tile_by_point(&mut self, centroid: &Point, point: Point) -> Result<Point, String> {
+    pub fn insert_adjacent_tile_by_point(&mut self, centroid: &Point, point: Point) -> Result<(Point, String), String> {
         let tile = match self.tiles.get(centroid) { Some(t) => t, None => return Err(String::from(format!("no Tile in Patch centered at {}", centroid))) };
         let edge = tile.closest_edge(&point);
         let t = tile.clone();
         match self.insert_adjacent_tile_by_edge(edge) {
-            Ok(v) => Ok(v),
+            Ok((p, s)) => Ok((p, format!("{}\n{}\n{}\n{}", centroid, point, t, s))),
             Err(e) => Err(String::from(format!("{}\n{}\n{}\n({},{})\n{}", centroid, point, t, edge.0, edge.1, e)))
         }
     }
@@ -189,12 +189,12 @@ impl Patch {
     // both points in the edge are expected to be points of existing VertexStars
     // in this Patch. If both exist, the new Tile will be added starboard of the
     // edge drawn from start to stop.
-    fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point)) -> Result<Point, String> {
+    fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point)) -> Result<(Point, String), String> {
         let start_vertex_star = match self.vertex_stars.get(&start) { Some(vs) => vs, None => return Err(String::from(format!("no VertexStar found at start {}\n{}", start, self))) };
         let tile = match start_vertex_star.get_tile(&self.tiling, &stop) { Some(t) => t, None => return Err(String::from(format!("stop {} is not in the link of start {}\n{}", stop, start, self))) };
         let tile_size = tile.size();
 
-        match self.tiles.insert(tile.centroid.clone(), tile.clone()) { None => self.tile_diffs.insert(tile.clone(), TileDiff::Added), Some(_) => return Ok(tile.centroid.clone()) };
+        match self.tiles.insert(tile.centroid.clone(), tile.clone()) { None => self.tile_diffs.insert(tile.clone(), TileDiff::Added), Some(_) => return Ok((tile.centroid.clone(), format!("exists: {}->{}", start, stop))) };
 
         let mut link_points: Vec<(usize, Point)> = vec![(0, stop.clone()), (0, start.clone())];
         let mut new_link_points: Vec<(usize, Point)> = vec![];
@@ -215,7 +215,7 @@ impl Patch {
                 middle = self.vertex_stars.entry(forward.clone()).or_insert({ new_link_points.push((forward_index, forward)); vs }).point.clone();
             }
         }
-        Ok(tile.centroid.clone())
+        Ok((tile.centroid.clone(), format!("dne: {}->{}\n{}\n{}", start, stop, tile.clone(), self)))
     }
 }
 

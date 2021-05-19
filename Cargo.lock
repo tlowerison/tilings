@@ -950,6 +950,7 @@ dependencies = [
 name = "tilings"
 version = "0.1.0"
 dependencies = [
+ "geometry",
  "itertools",
  "serde",
  "serde_json",

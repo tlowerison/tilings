@@ -1,8 +1,7 @@
-use common::{approx_eq, hash_float, rad, rev_iter};
+use common::{approx_eq, DEFAULT_PRECISION, hash_float, rad, rev_iter};
 use geometry::{reduce_transforms, Euclid, Generator, Point, Transform, Transformable};
 use itertools::{interleave, Itertools, izip};
 use std::{
-    collections::VecDeque,
     f64::consts::{PI, TAU},
     hash::{Hash, Hasher},
     iter,
@@ -10,17 +9,13 @@ use std::{
 
 #[derive(Clone)]
 pub struct ProtoTile {
-    pub points: VecDeque<Point>,
+    pub points: Vec<Point>,
     pub parity: bool,
 }
 
 impl ProtoTile {
-    pub fn new(tuples: Vec<(f64, f64)>) -> ProtoTile {
-        assert!(tuples.len() > 2);
-        let mut points = tuples
-            .into_iter()
-            .map(|(x, y)| Point(x, y))
-            .collect::<VecDeque<Point>>();
+    pub fn new(mut points: Vec<Point>) -> ProtoTile {
+        assert!(points.len() > 2);
         points.shrink_to_fit();
         ProtoTile {
             points,
@@ -45,23 +40,25 @@ impl ProtoTile {
 
     // angle returns the angle in radians between the line segments drawn between (point_index-1,point_index) and (point_index,point_index+1)
     pub fn angle(&self, point_index: usize) -> f64 {
-        let size = self.size();
+        let points = &self.points;
+        let size = points.len();
         assert!(point_index < size);
-        let point = match self.points.get(point_index) {
+
+        let point = match points.get(point_index) {
             Some(point) => point,
             None => panic!(
                 "failed to find angle: index is out of bounds for ProtoTile {}",
                 self
             ),
         };
-        let point1 = match self.points.get((point_index + (size - 1)) % size) {
+        let point1 = match points.get((point_index + (size - 1)) % size) {
             Some(point) => point,
             None => panic!(
                 "failed to find angle: preceding index is out of bounds for ProtoTile {}",
                 self
             ),
         };
-        let point2 = match self.points.get((point_index + 1) % size) {
+        let point2 = match points.get((point_index + 1) % size) {
             Some(point) => point,
             None => panic!(
                 "failed to find angle: succeeding index is out of bounds for ProtoTile {}",
@@ -152,7 +149,7 @@ impl Eq for ProtoTile {}
 impl Hash for ProtoTile {
     fn hash<H: Hasher>(&self, state: &mut H) {
         for i in rev_iter(self.parity, 0..self.size()) {
-            hash_float(self.angle(i), 2).hash(state);
+            hash_float(self.angle(i), DEFAULT_PRECISION).hash(state);
         }
     }
 }
@@ -166,7 +163,7 @@ impl PartialEq for ProtoTile {
             rev_iter(self.parity, 0..self.size()),
             rev_iter(other.parity, 0..other.size())
         ) {
-            if hash_float(self.angle(self_i), 4) != hash_float(other.angle(other_i), 4) {
+            if hash_float(self.angle(self_i), DEFAULT_PRECISION) != hash_float(other.angle(other_i), DEFAULT_PRECISION) {
                 return false;
             }
         }
@@ -256,8 +253,8 @@ impl Eq for Tile {}
 
 impl Hash for Tile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        hash_float(self.centroid.0, 2).hash(state);
-        hash_float(self.centroid.1, 2).hash(state);
+        hash_float(self.centroid.0, DEFAULT_PRECISION).hash(state);
+        hash_float(self.centroid.1, DEFAULT_PRECISION).hash(state);
     }
 }
 
@@ -302,14 +299,13 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
 
     let mut generator = Generator::new(affine);
 
-    let proto_tile = ProtoTile {
-        points: iter::repeat(Point(0., 0.))
+    let proto_tile = ProtoTile::new(
+        iter::repeat(Point(0., 0.))
             .take(num_sides)
             .enumerate()
             .map(|(i, point)| point.transform(&generator(i)))
             .collect(),
-        parity: false,
-    };
+    );
 
     proto_tile.assert_angles(
         iter::repeat(2. * centroid_angle_of_inclination)
@@ -323,7 +319,7 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
 
 // star_polygon returns a ProtoTile with 2 * num_base_sides points, where each point which
 // was included in the original regular polygon has its internal angle set to the provided value.
-pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64) -> ProtoTile {
+pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64, dents_are_vertices: bool) -> ProtoTile {
     if num_base_sides < 3 {
         panic!("invalid star polygon: side_length = {}, num_sides = {}", side_length, num_base_sides);
     }
@@ -343,13 +339,12 @@ pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64
         })
         .collect_vec();
 
-    let mut points = interleave(base.points.into_iter(), indented_points.into_iter()).collect::<VecDeque<Point>>();
-    points.shrink_to_fit();
+    let mut dented_points = interleave(base.points.clone().into_iter(), indented_points.into_iter()).collect_vec();
+    dented_points.shrink_to_fit();
 
-    ProtoTile {
-        points,
-        parity: false,
-    }
+    ProtoTile::new(
+        if dents_are_vertices { dented_points.clone() } else { base.points },
+    )
 }
 
 #[cfg(test)]
@@ -362,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_tile_closest_edge() {
-        let square = Tile::new(ProtoTile::new(vec![(0., 0.), (1., 0.), (1., 1.), (0., 1.)]), false);
+        let square = Tile::new(regular_polygon(1., 4), false);
 
         let edge = square.closest_edge(&Point::new((0.5, -0.5)));
         assert_eq!(Point(0., 0.), edge.0);
@@ -399,13 +394,24 @@ mod tests {
 
     #[test]
     fn test_star_polygon() {
-        let three_two_star = star_polygon(1., 3, to_rad(30.));
+        let three_two_star = star_polygon(1., 3, to_rad(30.), false);
+        assert_eq!(3, three_two_star.size());
+
+        let exterior_angle = to_rad(120.);
+        let x = Point(2. * to_rad(15.).cos(), 0.);
+        let mut point = ORIGIN;
+
+        approx_eq!(&Point, &point, three_two_star.points.get(0).unwrap()); point = &point + &x.transform(&Euclid::Rotate(0. * exterior_angle));
+        approx_eq!(&Point, &point, three_two_star.points.get(1).unwrap()); point = &point + &x.transform(&Euclid::Rotate(1. * exterior_angle));
+        approx_eq!(&Point, &point, three_two_star.points.get(2).unwrap());
+
+        let three_two_star = star_polygon(1., 3, to_rad(30.), true);
+        assert_eq!(6, three_two_star.size());
 
         let internal_angle_diff = to_rad(15.);
         let exterior_angle = to_rad(120.);
         let mut point = ORIGIN;
 
-        assert_eq!(6, three_two_star.size());
         approx_eq!(&Point, &point, three_two_star.points.get(0).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle + 1. * internal_angle_diff));
         approx_eq!(&Point, &point, three_two_star.points.get(1).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle - 1. * internal_angle_diff));
         approx_eq!(&Point, &point, three_two_star.points.get(2).unwrap()); point = &point + &X.transform(&Euclid::Rotate(1. * exterior_angle + 1. * internal_angle_diff));
@@ -414,13 +420,27 @@ mod tests {
         approx_eq!(&Point, &point, three_two_star.points.get(5).unwrap());
 
 
-        let six_two_star = star_polygon(1., 6, to_rad(60.));
+        let six_two_star = star_polygon(1., 6, to_rad(60.), false);
+        assert_eq!(6, six_two_star.size());
+
+        let exterior_angle = to_rad(60.);
+        let x = Point(2. * to_rad(30.).cos(), 0.);
+        let mut point = ORIGIN;
+
+        approx_eq!(&Point, &point, six_two_star.points.get(0).unwrap()); point = &point + &x.transform(&Euclid::Rotate(0. * exterior_angle));
+        approx_eq!(&Point, &point, six_two_star.points.get(1).unwrap()); point = &point + &x.transform(&Euclid::Rotate(1. * exterior_angle));
+        approx_eq!(&Point, &point, six_two_star.points.get(2).unwrap()); point = &point + &x.transform(&Euclid::Rotate(2. * exterior_angle));
+        approx_eq!(&Point, &point, six_two_star.points.get(3).unwrap()); point = &point + &x.transform(&Euclid::Rotate(3. * exterior_angle));
+        approx_eq!(&Point, &point, six_two_star.points.get(4).unwrap()); point = &point + &x.transform(&Euclid::Rotate(4. * exterior_angle));
+        approx_eq!(&Point, &point, six_two_star.points.get(5).unwrap());
+
+        let six_two_star = star_polygon(1., 6, to_rad(60.), true);
+        assert_eq!(12, six_two_star.size());
 
         let internal_angle_diff = to_rad(30.);
         let exterior_angle = to_rad(60.);
         let mut point = ORIGIN;
 
-        assert_eq!(12, six_two_star.size());
         approx_eq!(&Point, &point, six_two_star.points.get(0).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle + 1. * internal_angle_diff));
         approx_eq!(&Point, &point, six_two_star.points.get(1).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle - 1. * internal_angle_diff));
         approx_eq!(&Point, &point, six_two_star.points.get(2).unwrap()); point = &point + &X.transform(&Euclid::Rotate(1. * exterior_angle + 1. * internal_angle_diff));

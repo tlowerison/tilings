@@ -3,7 +3,7 @@ use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
 use float_cmp::ApproxEq;
 use geometry::{Euclid, Point, Transformable, ORIGIN};
 use itertools::{izip, Itertools};
-use std::{collections::HashSet, f64::consts::TAU, iter};
+use std::{collections::HashSet, f64::consts::{PI, TAU}, iter};
 
 // abstract graph - tiling
 
@@ -46,10 +46,18 @@ impl ProtoVertexStar {
 
 pub mod config {
     use super::ProtoTile;
+    use itertools::Itertools;
+
     pub struct Component(
         pub ProtoTile, /* proto_tile */
         pub usize,     /* point_index */
     );
+
+    impl std::fmt::Display for Component {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Component({}, {})", self.0, self.1)
+        }
+    }
 
     pub struct Neighbor(
         pub usize, /* proto_vertex_star_index */
@@ -57,9 +65,24 @@ pub mod config {
         pub bool,  /* parity */
     );
 
+    impl std::fmt::Display for Neighbor {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Neighbor({}, {}, {})", self.0, self.1, self.2)
+        }
+    }
+
     pub struct Vertex {
         pub components: Vec<Component>,
         pub neighbors: Vec<Neighbor>, // components[i], neighbors[i], components[i+1]
+    }
+
+    impl std::fmt::Display for Vertex {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "Vertex\n  components:\n{}  \n  neighbors:\n{}",
+                self.components.iter().map(|component| format!("  - {}", component)).collect_vec().join("\n"),
+                self.neighbors.iter().map(|neighbor| format!("  - {}", neighbor)).collect_vec().join("\n")
+            )
+        }
     }
 
     pub struct Config(pub Vec<Vertex>);
@@ -83,23 +106,30 @@ impl Tiling {
                 if component.0.points.len() < 2 {
                     return Err(String::from(format!("vertex {}, component {} - expected >= 2 points but received {} points", i, j, component.0.points.len())))
                 }
+
                 let point = match component.0.points.get(component.1) {
                     Some(point) => point,
                     None => return Err(String::from(format!("vertex {}, component {} has missing point for index {} - ProtoTile == {}", i, j, component.1, component.0))),
                 };
+
                 let mut proto_tile = component.0.transform(&Euclid::Translate(point.neg().values()));
-                let next_point = match proto_tile.points.get((component.1 + 1) % component.0.size()) {
+
+                let next_point_index = component.1;
+                let next_point = match proto_tile.points.get((next_point_index + 1) % component.0.size()) {
                     Some(point) => point.clone(),
                     None => return Err(String::from(format!("vertex {}, component {} has missing point for index {} - ProtoTile == {}", i, j, (component.1 + 1) % component.0.size(), component.0))),
                 };
+
+                let angle = proto_tile.angle(next_point_index);
+
                 proto_tile = proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
                 proto_tile.reorient(&ORIGIN);
-                let angle = proto_tile.angle(component.1);
+
                 proto_tiles.extend_one(proto_tile);
                 rotation += angle;
             }
             if !rotation.approx_eq(TAU, DEFAULT_F64_MARGIN) {
-                return Err(String::from(format!("vertex {}'s prototiles don't perfectly fit together - expected 360° fill but received ~{}°", i, fmt_float(rotation * 360. / TAU, 2))))
+                return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{}", i, fmt_float(rotation * 360. / TAU, 2), vertex)))
             }
             all_proto_tiles.extend(iter::once(proto_tiles));
         }
@@ -165,7 +195,7 @@ impl std::fmt::Display for ProtoNeighbor {
 
 impl std::fmt::Display for ProtoVertexStar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match write!(f, "-components:\n") {
+        match write!(f, "components:\n") {
             Ok(_) => {}
             Err(e) => return Err(e),
         }
@@ -223,7 +253,7 @@ impl std::fmt::Display for Tiling {
                 Err(e) => return Err(e),
             };
         }
-        match write!(f, "\n") {
+        match write!(f, "\nvertex stars:\n") {
             Ok(_) => {}
             Err(e) => return Err(e),
         };
@@ -247,10 +277,10 @@ impl std::fmt::Display for VertexStarTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{parity: {}, translate: {}, rotate: {}}}",
+            "{{parity: {}, translate: {}, rotate: {}π}}",
             self.parity,
             Point::new(self.translate),
-            fmt_float(self.rotate, 3)
+            fmt_float(self.rotate / PI, 2)
         )
     }
 }

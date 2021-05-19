@@ -7,6 +7,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+pub const DEFAULT_PRECISION: u32 = 6;
+
 // DEFAULT_F64_MARGIN guarantees that a pair of points with neither coordinate
 // differing by more than F64_MARGIN.0 / 10. will hash to the same value.
 pub const DEFAULT_F64_MARGIN: (f64, i64) = (0.000_001, 5);

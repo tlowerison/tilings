@@ -24,6 +24,7 @@ pub enum TilingType {
     _3_3_3_4_4 = "3.3.3.4.4",
     _3_3_3_3_6 = "3.3.3.3.6",
     _3_3_3_3_3_3__3_3_4_3_4 = "3.3.3.3.3.3;3.3.4.3.4",
+    _4_6apio6_6aapio2_6apio6 = "4.6∗π/6.6∗∗π/2.6∗π/6",
     Custom = "custom", // be careful that input points are accurate to as many digits as possible, otherwise tiling will fail
 }
 
@@ -41,6 +42,7 @@ impl TilingType {
             TilingType::_3_3_3_4_4 => tilings::_3_3_3_4_4(),
             TilingType::_3_3_3_3_6 => tilings::_3_3_3_3_6(),
             TilingType::_3_3_3_3_3_3__3_3_4_3_4 => tilings::_3_3_3_3_3_3__3_3_4_3_4(),
+            TilingType::_4_6apio6_6aapio2_6apio6 => tilings::_4_6apio6_6aapio2_6apio6(),
             TilingType::Custom => {
                 if !config_str.is_string() {
                     return Err(String::from("missing custom config"))
@@ -60,7 +62,7 @@ pub struct Config {
 }
 
 static mut CONFIG: Config = Config {
-    tiling_type: TilingType::_3_3_3_3_3_3__3_3_4_3_4,
+    tiling_type: TilingType::_4_6apio6_6aapio2_6apio6,
 };
 
 struct State {
@@ -139,11 +141,11 @@ pub fn click(canvas: HtmlCanvasElement, x: f64, y: f64) ->  JsValue {
             Some(state) => {
                 let point = from_canvas(x, y);
                 match state.patch.insert_adjacent_tile_by_point(&state.cur_tile_centroid, point) {
-                    Ok(centroid) => {
+                    Ok((centroid, msg)) => {
                         state.cur_tile_centroid = centroid;
                         match draw(canvas, state.patch.drain_tile_diffs()) {
                             Some(js_value) => js_value,
-                            None => JsValue::TRUE,
+                            None => JsValue::from_str(&msg),
                         }
                     },
                     Err(e) => JsValue::from_str(&String::from(format!("{}", e))),
