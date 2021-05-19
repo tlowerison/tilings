@@ -276,6 +276,8 @@ mod tests {
     use geometry::Point;
     use std::f64::consts::{PI, TAU};
 
+    const X: Point = Point(1., 0.);
+
     fn get_test_tiling_3_3_3_3_3_3() -> Tiling {
         let triangle = regular_polygon(1., 3);
         Tiling::new(
@@ -390,7 +392,6 @@ mod tests {
     #[test]
     // by link refers to asserting that all of a vertex star's neighbors (i.e. the vertex star's link) are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_link() {
-        let x = Point(1., 0.);
         let [
             tiling_4_4_4_4,
             tiling_3_3_3_3_3_3,
@@ -421,41 +422,41 @@ mod tests {
 
             println!("Tiling 4.4.4.4");
             let vertex_star = VertexStar::new(&tiling_4_4_4_4, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 3, x.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 3, X.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
             println!();
 
             println!("Tiling 3.3.3.3.3.3");
             let vertex_star = VertexStar::new(&tiling_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 3, x.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 4, x.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 5, x.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 3, X.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 4, X.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 5, X.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
             println!();
 
             println!("Tiling 6.6.6");
             let vertex_star = VertexStar::new(&tiling_6_6_6, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
-            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
-            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
             println!();
 
             println!("Tiling 3.12.12");
             let vertex_star = VertexStar::new(&tiling_3_12_12, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, x, false, to_rad(120.));
-            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
-            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
+            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, X, false, to_rad(120.));
+            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
+            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
             println!();
 
             println!("Tiling 4.6.12");
             let vertex_star = VertexStar::new(&tiling_4_6_12, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 0, x, true, to_rad(180.));
-            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 1, x.transform(&Euclid::Rotate(to_rad(150.))), true, to_rad(120.));
-            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 2, x.transform(&Euclid::Rotate(to_rad(270.))), true, to_rad(0.));
+            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 0, X, true, to_rad(180.));
+            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(150.))), true, to_rad(120.));
+            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(270.))), true, to_rad(0.));
             println!();
         }
     }
@@ -463,7 +464,6 @@ mod tests {
     #[test]
     // by chain refers to asserting that a sequence of vertex stars, the next accumulated as a neighbor of the previous star, are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_sequence() {
-        let x = Point(1., 0.);
         let [
             tiling_4_4_4_4,
             tiling_3_3_3_3_3_3,
@@ -502,34 +502,34 @@ mod tests {
 
             println!("Tiling 4.4.4.4");
             let vertex_star = VertexStar::new(&tiling_4_4_4_4, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 2, x.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
-            let _nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 3, x.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
+            let _nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 3, X.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
             println!();
 
             println!("Tiling 3.3.3.3.3.3");
             let vertex_star = VertexStar::new(&tiling_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 2, x.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 3, x.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 4, x.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
-            let _nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 5, x.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 3, X.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 4, X.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
+            let _nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 5, X.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
             println!();
 
             println!("Tiling 6.6.6");
             let vertex_star = VertexStar::new(&tiling_6_6_6, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, x.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
-            let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
-            let _nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 2, x.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
+            let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
+            let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
+            let _nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
             println!();
 
             println!("Tiling 3.12.12");
             let vertex_star = VertexStar::new(&tiling_3_12_12, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, x, false, to_rad(120.));
-            let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 1, x.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
-            let _nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 2, x.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
+            let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, X, false, to_rad(120.));
+            let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
+            let _nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
             println!();
 
             println!("Tiling 4.6.12");
@@ -537,18 +537,18 @@ mod tests {
 
             let nvs = vertex_star.get_neighbor_vertex_star(&tiling_4_6_12, 0).unwrap();
             assert_eq!(true, nvs.parity);
-            assert_eq!(x.transform(&rotate), nvs.point);
+            assert_eq!(X.transform(&rotate), nvs.point);
             approx_eq!(f64, rad(to_rad(180.) + rotation), nvs.rotation);
 
             let nvs = nvs.get_neighbor_vertex_star(&tiling_4_6_12, 1).unwrap();
             assert_eq!(false, nvs.parity);
-            assert_eq!((&x + &x.transform(&Euclid::Rotate(to_rad(30.)))).transform(&rotate), nvs.point);
+            assert_eq!((&X + &X.transform(&Euclid::Rotate(to_rad(30.)))).transform(&rotate), nvs.point);
             approx_eq!(f64, rad(to_rad(60.) + rotation), nvs.rotation);
 
             let nvs = nvs.get_neighbor_vertex_star(&tiling_4_6_12, 2).unwrap();
             assert_eq!(true, nvs.parity);
             assert_eq!((
-                &(&x + &x.transform(&Euclid::Rotate(to_rad(30.)))) + &x.transform(&Euclid::Rotate(to_rad(-30.)))
+                &(&X + &X.transform(&Euclid::Rotate(to_rad(30.)))) + &X.transform(&Euclid::Rotate(to_rad(-30.)))
             ).transform(&rotate), nvs.point);
             approx_eq!(f64, rad(to_rad(60.) + rotation), nvs.rotation);
 

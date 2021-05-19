@@ -1,6 +1,6 @@
 use common::{approx_eq, hash_float, rad, rev_iter};
 use geometry::{reduce_transforms, Euclid, Generator, Point, Transform, Transformable};
-use itertools::izip;
+use itertools::{interleave, Itertools, izip};
 use std::{
     collections::VecDeque,
     f64::consts::{PI, TAU},
@@ -282,6 +282,10 @@ impl std::fmt::Display for Tile {
 }
 
 pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
+    if num_sides < 3 || side_length <= 0. {
+        panic!("invalid regular polygon: side_length = {}, num_sides = {}", side_length, num_sides);
+    }
+
     let n = num_sides as f64;
     let centroid_angle_of_inclination = PI * (0.5 - 1. / n);
     let radius = side_length / 2. / centroid_angle_of_inclination.cos();
@@ -317,10 +321,44 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
     proto_tile
 }
 
+// star_polygon returns a ProtoTile with 2 * num_base_sides points, where each point which
+// was included in the original regular polygon has its internal angle set to the provided value.
+pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64) -> ProtoTile {
+    if num_base_sides < 3 {
+        panic!("invalid star polygon: side_length = {}, num_sides = {}", side_length, num_base_sides);
+    }
+    if internal_angle <= 0. || internal_angle >= PI {
+        panic!("invalid star polygon: expected internal angle to be be in the open interval (0, π) but received {}π", internal_angle / PI);
+    }
+    let internal_angle_diff = (PI - TAU / (num_base_sides as f64) - internal_angle) / 2.;
+    let base = regular_polygon(2. * side_length * internal_angle_diff.cos(), num_base_sides);
+    let x = Point(1., 0.);
+    let indented_points = base.points
+        .iter()
+        .enumerate()
+        .map(|(i, point)| {
+            let next_point = base.points.get((i + 1) % base.size()).unwrap();
+            let rotation = (next_point - &point).arg();
+            point + &x.transform(&Euclid::Rotate(rotation + internal_angle_diff))
+        })
+        .collect_vec();
+
+    let mut points = interleave(base.points.into_iter(), indented_points.into_iter()).collect::<VecDeque<Point>>();
+    points.shrink_to_fit();
+
+    ProtoTile {
+        points,
+        parity: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use geometry::Point;
+    use common::{fmt_float, to_rad};
+    use geometry::{ORIGIN, Point};
+
+    const X: Point = Point(1., 0.);
 
     #[test]
     fn test_tile_closest_edge() {
@@ -343,14 +381,57 @@ mod tests {
         assert_eq!(Point(0., 0.), edge.1);
     }
 
-    // #[test]
-    // fn test_regular_polygon() {
-    //     let triangle = regular_polygon(1., 3);
-    //     let square = regular_polygon(1., 4);
-    //     let hexagon = regular_polygon(1., 6);
-    //     println!("{}", triangle);
-    //     println!("{}", square);
-    //     println!("{}", hexagon);
-    //     assert!(false);
-    // }
+    #[test]
+    fn test_regular_polygon() {
+        for num_sides in 3..100 {
+            println!("num sides: {}", num_sides);
+            let polygon = regular_polygon(1., num_sides);
+            let mut point = ORIGIN.clone();
+            let exterior_angle = to_rad(360. / (num_sides as f64));
+            println!("exterior angle: {}π", fmt_float(exterior_angle / PI, 2));
+            for i in 0..num_sides {
+                println!("point {}", i);
+                approx_eq!(&Point, &point, polygon.points.get(i).unwrap());
+                point = &point + &X.transform(&Euclid::Rotate((i as f64) * exterior_angle));
+            }
+        }
+    }
+
+    #[test]
+    fn test_star_polygon() {
+        let three_two_star = star_polygon(1., 3, to_rad(30.));
+
+        let internal_angle_diff = to_rad(15.);
+        let exterior_angle = to_rad(120.);
+        let mut point = ORIGIN;
+
+        assert_eq!(6, three_two_star.size());
+        approx_eq!(&Point, &point, three_two_star.points.get(0).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, three_two_star.points.get(1).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, three_two_star.points.get(2).unwrap()); point = &point + &X.transform(&Euclid::Rotate(1. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, three_two_star.points.get(3).unwrap()); point = &point + &X.transform(&Euclid::Rotate(1. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, three_two_star.points.get(4).unwrap()); point = &point + &X.transform(&Euclid::Rotate(2. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, three_two_star.points.get(5).unwrap());
+
+
+        let six_two_star = star_polygon(1., 6, to_rad(60.));
+
+        let internal_angle_diff = to_rad(30.);
+        let exterior_angle = to_rad(60.);
+        let mut point = ORIGIN;
+
+        assert_eq!(12, six_two_star.size());
+        approx_eq!(&Point, &point, six_two_star.points.get(0).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(1).unwrap()); point = &point + &X.transform(&Euclid::Rotate(0. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(2).unwrap()); point = &point + &X.transform(&Euclid::Rotate(1. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(3).unwrap()); point = &point + &X.transform(&Euclid::Rotate(1. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(4).unwrap()); point = &point + &X.transform(&Euclid::Rotate(2. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(5).unwrap()); point = &point + &X.transform(&Euclid::Rotate(2. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(6).unwrap()); point = &point + &X.transform(&Euclid::Rotate(3. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(7).unwrap()); point = &point + &X.transform(&Euclid::Rotate(3. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(8).unwrap()); point = &point + &X.transform(&Euclid::Rotate(4. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(9).unwrap()); point = &point + &X.transform(&Euclid::Rotate(4. * exterior_angle - 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(10).unwrap()); point = &point + &X.transform(&Euclid::Rotate(5. * exterior_angle + 1. * internal_angle_diff));
+        approx_eq!(&Point, &point, six_two_star.points.get(11).unwrap());
+    }
 }

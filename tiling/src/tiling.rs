@@ -80,8 +80,8 @@ impl Tiling {
                 return Err(String::from(format!("vertex {} has mismatched # of components ({}) and neighbors ({})", i, vertex.components.len(), vertex.neighbors.len())))
             }
             for (j, component) in vertex.components.iter().enumerate() {
-                if component.0.points.len() < 3 {
-                    return Err(String::from(format!("vertex {}, component {} - expected >= 3 points but received {} points", i, j, component.0.points.len())))
+                if component.0.points.len() < 2 {
+                    return Err(String::from(format!("vertex {}, component {} - expected >= 2 points but received {} points", i, j, component.0.points.len())))
                 }
                 let point = match component.0.points.get(component.1) {
                     Some(point) => point,

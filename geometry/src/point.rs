@@ -3,7 +3,7 @@ use crate::{
     transform::{Transform, Transformable},
 };
 use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
-use float_cmp::ApproxEq;
+use float_cmp::{ApproxEq, F64Margin};
 use num_traits::cast::NumCast;
 use std::{
     hash::{Hash, Hasher},
@@ -59,6 +59,22 @@ impl Add for &Point {
     type Output = Point;
     fn add(self, other: &Point) -> Self::Output {
         Point(self.0 + other.0, self.1 + other.1)
+    }
+}
+
+impl ApproxEq for Point {
+    type Margin = F64Margin;
+
+    fn approx_eq<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
+        0_f64.approx_eq((&self - &other).norm(), margin)
+    }
+}
+
+impl ApproxEq for &Point {
+    type Margin = F64Margin;
+
+    fn approx_eq<M: Into<Self::Margin>>(self, other: Self, margin: M) -> bool {
+        0_f64.approx_eq((self - other).norm(), margin)
     }
 }
 
