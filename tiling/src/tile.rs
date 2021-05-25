@@ -1,4 +1,4 @@
-use common::{approx_eq, DEFAULT_PRECISION, hash_float, rad, rev_iter};
+use common::{approx_eq, DEFAULT_PRECISION, fmt_float, hash_float, rad, rev_iter};
 use geometry::{reduce_transforms, Euclid, Generator, Point, Transform, Transformable};
 use itertools::{interleave, Itertools, izip};
 use std::{
@@ -7,7 +7,7 @@ use std::{
     iter,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProtoTile {
     pub points: Vec<Point>,
     pub parity: bool,
@@ -69,11 +69,20 @@ impl ProtoTile {
         rad(if self.parity { TAU - angle } else { angle })
     }
 
+    pub fn angles(&self) -> Vec<f64> {
+        (0..self.size()).map(|point_index| self.angle(point_index)).collect()
+    }
+
+    pub fn angles_str(&self) -> String {
+        self.angles().into_iter().map(|angle| format!("{}", fmt_float(angle / TAU * 360., 2))).collect::<Vec<String>>().join(" ")
+    }
+
     // assert_angles asserts that all angles equal those provided
     pub fn assert_angles(&self, angles: Vec<f64>) {
-        assert_eq!(self.size(), angles.len());
-        for (point_index, angle) in angles.into_iter().enumerate() {
-            approx_eq!(f64, angle, self.angle(point_index));
+        let exp_angles = self.angles();
+        assert_eq!(exp_angles.len(), angles.len());
+        for (exp_angle, angle) in izip!(exp_angles, angles) {
+            approx_eq!(f64, exp_angle, angle);
         }
     }
 
@@ -172,7 +181,7 @@ impl PartialEq for ProtoTile {
 }
 
 impl<'a> Transformable<'a> for ProtoTile {
-    fn transform<T: Transform>(&self, transform: &'a T) -> ProtoTile {
+    fn transform<T: Transform>(&self, transform: &'a T) -> Self {
         let affine = transform.as_affine();
         ProtoTile {
             points: self
@@ -261,6 +270,21 @@ impl Hash for Tile {
 impl PartialEq for Tile {
     fn eq(&self, other: &Self) -> bool {
         self.centroid == other.centroid
+    }
+}
+
+impl<'a> Transformable<'a> for Tile {
+    fn transform<T: Transform>(&self, transform: &'a T) -> Self {
+        let affine = transform.as_affine();
+        Tile {
+            points: self
+                .points
+                .iter()
+                .map(|point| point.transform(&affine))
+                .collect(),
+            centroid: self.centroid.transform(&affine),
+            parity: self.parity ^ affine.is_flip(),
+        }
     }
 }
 

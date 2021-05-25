@@ -141,11 +141,11 @@ pub fn click(canvas: HtmlCanvasElement, x: f64, y: f64) ->  JsValue {
             Some(state) => {
                 let point = from_canvas(x, y);
                 match state.patch.insert_adjacent_tile_by_point(&state.cur_tile_centroid, point) {
-                    Ok((centroid, msg)) => {
+                    Ok(centroid) => {
                         state.cur_tile_centroid = centroid;
                         match draw(canvas, state.patch.drain_tile_diffs()) {
                             Some(js_value) => js_value,
-                            None => JsValue::from_str(&msg),
+                            None => JsValue::TRUE,
                         }
                     },
                     Err(e) => JsValue::from_str(&String::from(format!("{}", e))),
