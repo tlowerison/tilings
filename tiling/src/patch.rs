@@ -383,8 +383,8 @@ mod tests {
 
     fn get_test_tiling_4_6apio6_6aapio2_6apio6() -> Tiling {
         let square = regular_polygon(1., 4);
-        let star_1 = star_polygon(1., 6, PI / 6., true);
-        let star_2 = star_polygon(1., 6, PI / 2., true);
+        let star_1 = star_polygon(1., 6, PI / 6.);
+        let star_2 = star_polygon(1., 6, PI / 2.);
 
         Tiling::new(
             Config(vec![

@@ -343,7 +343,7 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
 
 // star_polygon returns a ProtoTile with 2 * num_base_sides points, where each point which
 // was included in the original regular polygon has its internal angle set to the provided value.
-pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64, dents_are_vertices: bool) -> ProtoTile {
+pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64) -> ProtoTile {
     if num_base_sides < 3 {
         panic!("invalid star polygon: side_length = {}, num_sides = {}", side_length, num_base_sides);
     }
@@ -366,9 +366,7 @@ pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64
     let mut dented_points = interleave(base.points.clone().into_iter(), indented_points.into_iter()).collect_vec();
     dented_points.shrink_to_fit();
 
-    ProtoTile::new(
-        if dents_are_vertices { dented_points.clone() } else { base.points },
-    )
+    ProtoTile::new(dented_points)
 }
 
 #[cfg(test)]
@@ -418,18 +416,7 @@ mod tests {
 
     #[test]
     fn test_star_polygon() {
-        let three_two_star = star_polygon(1., 3, to_rad(30.), false);
-        assert_eq!(3, three_two_star.size());
-
-        let exterior_angle = to_rad(120.);
-        let x = Point(2. * to_rad(15.).cos(), 0.);
-        let mut point = ORIGIN;
-
-        approx_eq!(&Point, &point, three_two_star.points.get(0).unwrap()); point = &point + &x.transform(&Euclid::Rotate(0. * exterior_angle));
-        approx_eq!(&Point, &point, three_two_star.points.get(1).unwrap()); point = &point + &x.transform(&Euclid::Rotate(1. * exterior_angle));
-        approx_eq!(&Point, &point, three_two_star.points.get(2).unwrap());
-
-        let three_two_star = star_polygon(1., 3, to_rad(30.), true);
+        let three_two_star = star_polygon(1., 3, to_rad(30.));
         assert_eq!(6, three_two_star.size());
 
         let internal_angle_diff = to_rad(15.);
@@ -443,22 +430,7 @@ mod tests {
         approx_eq!(&Point, &point, three_two_star.points.get(4).unwrap()); point = &point + &X.transform(&Euclid::Rotate(2. * exterior_angle + 1. * internal_angle_diff));
         approx_eq!(&Point, &point, three_two_star.points.get(5).unwrap());
 
-
-        let six_two_star = star_polygon(1., 6, to_rad(60.), false);
-        assert_eq!(6, six_two_star.size());
-
-        let exterior_angle = to_rad(60.);
-        let x = Point(2. * to_rad(30.).cos(), 0.);
-        let mut point = ORIGIN;
-
-        approx_eq!(&Point, &point, six_two_star.points.get(0).unwrap()); point = &point + &x.transform(&Euclid::Rotate(0. * exterior_angle));
-        approx_eq!(&Point, &point, six_two_star.points.get(1).unwrap()); point = &point + &x.transform(&Euclid::Rotate(1. * exterior_angle));
-        approx_eq!(&Point, &point, six_two_star.points.get(2).unwrap()); point = &point + &x.transform(&Euclid::Rotate(2. * exterior_angle));
-        approx_eq!(&Point, &point, six_two_star.points.get(3).unwrap()); point = &point + &x.transform(&Euclid::Rotate(3. * exterior_angle));
-        approx_eq!(&Point, &point, six_two_star.points.get(4).unwrap()); point = &point + &x.transform(&Euclid::Rotate(4. * exterior_angle));
-        approx_eq!(&Point, &point, six_two_star.points.get(5).unwrap());
-
-        let six_two_star = star_polygon(1., 6, to_rad(60.), true);
+        let six_two_star = star_polygon(1., 6, to_rad(60.));
         assert_eq!(12, six_two_star.size());
 
         let internal_angle_diff = to_rad(30.);

@@ -25,6 +25,7 @@ pub enum TilingType {
     _3_3_3_3_6 = "3.3.3.3.6",
     _3_3_3_3_3_3__3_3_4_3_4 = "3.3.3.3.3.3;3.3.4.3.4",
     _4_6apio6_6aapio2_6apio6 = "4.6∗π/6.6∗∗π/2.6∗π/6",
+    _9_9_6a4pio9 = "9.9.6∗4π/9",
     Custom = "custom", // be careful that input points are accurate to as many digits as possible, otherwise tiling will fail
 }
 
@@ -43,6 +44,7 @@ impl TilingType {
             TilingType::_3_3_3_3_6 => tilings::_3_3_3_3_6(),
             TilingType::_3_3_3_3_3_3__3_3_4_3_4 => tilings::_3_3_3_3_3_3__3_3_4_3_4(),
             TilingType::_4_6apio6_6aapio2_6apio6 => tilings::_4_6apio6_6aapio2_6apio6(),
+            TilingType::_9_9_6a4pio9 => tilings::_9_9_6a4pio9(),
             TilingType::Custom => {
                 if !config_str.is_string() {
                     return Err(String::from("missing custom config"))
@@ -62,7 +64,7 @@ pub struct Config {
 }
 
 static mut CONFIG: Config = Config {
-    tiling_type: TilingType::_4_6apio6_6aapio2_6apio6,
+    tiling_type: TilingType::_9_9_6a4pio9,
 };
 
 struct State {
