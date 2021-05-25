@@ -352,7 +352,7 @@ pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64
     }
     let internal_angle_diff = (PI - TAU / (num_base_sides as f64) - internal_angle) / 2.;
     let base = regular_polygon(2. * side_length * internal_angle_diff.cos(), num_base_sides);
-    let x = Point(1., 0.);
+    let x = Point(side_length, 0.);
     let indented_points = base.points
         .iter()
         .enumerate()

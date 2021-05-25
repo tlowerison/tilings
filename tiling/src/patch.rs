@@ -3,6 +3,7 @@ use crate::tiling::{ProtoNeighbor, ProtoVertexStar, Tiling};
 use common::*;
 use geometry::{Affine, Euclid, Point, Transform, Transformable};
 use std::collections::HashMap;
+use std::f64::consts::TAU;
 
 #[derive(Clone)]
 pub struct VertexStar {
@@ -24,6 +25,10 @@ pub enum VertexStarErr {
 impl VertexStar {
     pub fn new(tiling: &Tiling, point: Point, proto_vertex_star_index: usize, parity: bool, rotation: f64) -> VertexStar {
         let proto_vertex_star = tiling.proto_vertex_stars.get(proto_vertex_star_index).unwrap();
+        if proto_vertex_star_index == 0 {
+            println!("{} {} {} {}", point, proto_vertex_star_index, parity, fmt_float(rotation / TAU * 360., 2));
+            println!("{}", proto_vertex_star);
+        }
 
         let mut link_vec: Vec<Point> = Vec::with_capacity(proto_vertex_star.size());
 
@@ -424,6 +429,60 @@ mod tests {
                 }
             ]),
         ).expect("couldn't create tiling")
+    }
+
+    #[test]
+    fn test_tiling_6_4apio6_6_4apio6() {
+        let star = star_polygon(1., 4, PI / 6.);
+        let hexagon_1 = regular_polygon(1., 6);
+        let hexagon_2 = star_polygon(1., 6, 2. * PI / 3.);
+
+        let tiling = Tiling::new(
+            Config(vec![
+                Vertex {
+                    components: vec![
+                        Component(star.clone(), 0),
+                        Component(hexagon_1.clone(), 0),
+                        Component(star.clone(), 0),
+                        Component(hexagon_2.clone(), 1),
+                    ],
+                    neighbors: vec![
+                        Neighbor(1, 0, false),
+                        Neighbor(2, 1, false),
+                        Neighbor(2, 0, false),
+                        Neighbor(1, 1, false),
+                    ],
+                },
+                Vertex {
+                    components: vec![
+                        Component(hexagon_2.clone(), 0),
+                        Component(star.clone(), 1),
+                    ],
+                    neighbors: vec![
+                        Neighbor(0, 0, false),
+                        Neighbor(0, 3, false),
+                    ],
+                },
+                Vertex {
+                    components: vec![
+                        Component(hexagon_1.clone(), 0),
+                        Component(star.clone(), 1),
+                    ],
+                    neighbors: vec![
+                        Neighbor(0, 2, false),
+                        Neighbor(0, 1, false),
+                    ],
+                },
+            ]),
+        ).expect("couldn't create tiling");
+
+        let _patch = match Patch::new(tiling) {
+            Ok(_) => {},
+            Err(e) => {
+                println!("{}", e);
+                assert!(false);
+            },
+        };
     }
 
     // TODO: add 4_6apio6_6aapio2_6apio6 to the list of all test tilings

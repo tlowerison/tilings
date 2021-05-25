@@ -6,33 +6,46 @@ use tiling::{
     Tiling,
 };
 
-// 9.9.6∗4π/9
-// https://www.polyomino.org.uk/publications/2004/star-polygon-tiling.pdf - Figure 4.e
-pub fn _9_9_6a4pio9() -> Result<Tiling, String> {
-    let nonagon = regular_polygon(1., 9);
-    let star = star_polygon(1., 6, 4. * PI / 9.);
+// 6.4∗π/6.6.4∗π/6
+// https://www.polyomino.org.uk/publications/2004/star-polygon-tiling.pdf - Figure 2.d
+pub fn _6_4apio6_6_4apio6() -> Result<Tiling, String> {
+    let star = star_polygon(1., 4, PI / 6.);
+    let hexagon_1 = regular_polygon(1., 6);
+    let hexagon_2 = star_polygon(1., 6, 2. * PI / 3.);
 
     Tiling::new(
         Config(vec![
             Vertex {
                 components: vec![
                     Component(star.clone(), 0),
-                    Component(nonagon.clone(), 0),
-                    Component(nonagon.clone(), 0),
+                    Component(hexagon_1.clone(), 0),
+                    Component(star.clone(), 0),
+                    Component(hexagon_2.clone(), 1),
                 ],
                 neighbors: vec![
                     Neighbor(1, 0, false),
+                    Neighbor(2, 1, false),
+                    Neighbor(2, 0, false),
                     Neighbor(1, 1, false),
-                    Neighbor(0, 2, false),
                 ],
             },
             Vertex {
                 components: vec![
-                    Component(nonagon.clone(), 0),
+                    Component(hexagon_2.clone(), 0),
                     Component(star.clone(), 1),
                 ],
                 neighbors: vec![
                     Neighbor(0, 0, false),
+                    Neighbor(0, 3, false),
+                ],
+            },
+            Vertex {
+                components: vec![
+                    Component(hexagon_1.clone(), 0),
+                    Component(star.clone(), 1),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 2, false),
                     Neighbor(0, 1, false),
                 ],
             },
@@ -81,6 +94,40 @@ pub fn _4_6apio6_6aapio2_6apio6() -> Result<Tiling, String> {
                 neighbors: vec![
                     Neighbor(1, 2, false),
                     Neighbor(1, 1, false),
+                ],
+            },
+        ]),
+    )
+}
+
+// 9.9.6∗4π/9
+// https://www.polyomino.org.uk/publications/2004/star-polygon-tiling.pdf - Figure 4.e
+pub fn _9_9_6a4pio9() -> Result<Tiling, String> {
+    let nonagon = regular_polygon(1., 9);
+    let star = star_polygon(1., 6, 4. * PI / 9.);
+
+    Tiling::new(
+        Config(vec![
+            Vertex {
+                components: vec![
+                    Component(star.clone(), 0),
+                    Component(nonagon.clone(), 0),
+                    Component(nonagon.clone(), 0),
+                ],
+                neighbors: vec![
+                    Neighbor(1, 0, false),
+                    Neighbor(1, 1, false),
+                    Neighbor(0, 2, false),
+                ],
+            },
+            Vertex {
+                components: vec![
+                    Component(nonagon.clone(), 0),
+                    Component(star.clone(), 1),
+                ],
+                neighbors: vec![
+                    Neighbor(0, 0, false),
+                    Neighbor(0, 1, false),
                 ],
             },
         ]),
