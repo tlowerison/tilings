@@ -1,9 +1,9 @@
-use crate::tile::Tile;
 use crate::tiling::{ProtoNeighbor, ProtoVertexStar, Tiling};
 use common::*;
 use geometry::{Affine, Euclid, Point, Transform, Transformable};
 use std::collections::HashMap;
 use std::f64::consts::TAU;
+use tile::Tile;
 
 #[derive(Clone)]
 pub struct VertexStar {
@@ -276,8 +276,8 @@ impl std::fmt::Display for PathErr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tile::{ProtoTile, regular_polygon, star_polygon};
-    use crate::tiling::config::{Component, Config, Neighbor, Vertex};
+    use tile::{ProtoTile, regular_polygon, star_polygon};
+    use tiling_config::{Component, Neighbor, Vertex};
     use geometry::Point;
     use std::f64::consts::{PI, TAU};
 
@@ -288,7 +288,7 @@ mod tests {
     fn get_test_tiling_3_3_3_3_3_3() -> Tiling {
         let triangle = regular_polygon(1., 3);
         Tiling::new(
-            Config(vec![Vertex {
+            tiling_config::Tiling(vec![Vertex {
                 components: vec![
                     Component(triangle.clone(), 0),
                     Component(triangle.clone(), 0),
@@ -312,7 +312,7 @@ mod tests {
     fn get_test_tiling_4_4_4_4() -> Tiling {
         let square = regular_polygon(1., 4);
         Tiling::new(
-            Config(vec![Vertex {
+            tiling_config::Tiling(vec![Vertex {
                 components: vec![
                     Component(square.clone(), 0),
                     Component(square.clone(), 1),
@@ -332,7 +332,7 @@ mod tests {
     fn get_test_tiling_6_6_6() -> Tiling {
         let hexagon = regular_polygon(1., 6);
         Tiling::new(
-            Config(vec![Vertex {
+            tiling_config::Tiling(vec![Vertex {
                 components: vec![
                     Component(hexagon.clone(), 0),
                     Component(hexagon.clone(), 0),
@@ -351,7 +351,7 @@ mod tests {
         let triangle = regular_polygon(1., 3);
         let dodecagon = regular_polygon(1., 12);
         Tiling::new(
-            Config(vec![Vertex {
+            tiling_config::Tiling(vec![Vertex {
                 components: vec![
                     Component(triangle.clone(), 0),
                     Component(dodecagon.clone(), 0),
@@ -371,7 +371,7 @@ mod tests {
         let hexagon = regular_polygon(1., 6);
         let dodecagon = regular_polygon(1., 12);
         Tiling::new(
-            Config(vec![Vertex {
+            tiling_config::Tiling(vec![Vertex {
                 components: vec![
                     Component(dodecagon.clone(), 0),
                     Component(hexagon.clone(), 0),
@@ -392,7 +392,7 @@ mod tests {
         let star_2 = star_polygon(1., 6, PI / 2.);
 
         Tiling::new(
-            Config(vec![
+            tiling_config::Tiling(vec![
                 Vertex {
                     components: vec![
                         Component(star_2.clone(), 0),
@@ -438,7 +438,7 @@ mod tests {
         let hexagon_2 = star_polygon(1., 6, 2. * PI / 3.);
 
         let tiling = Tiling::new(
-            Config(vec![
+            tiling_config::Tiling(vec![
                 Vertex {
                     components: vec![
                         Component(star.clone(), 0),

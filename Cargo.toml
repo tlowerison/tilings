@@ -3,9 +3,9 @@
 members = [
   "common",
   "geometry",
-  "simulation",
+  "tile",
   "tiling",
-  "tilings",
+  "tiling-config",
   "wasm",
 ]
 

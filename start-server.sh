@@ -13,9 +13,9 @@ fi
 
 cd wasm
 if [ "${CONFIG}" = "release" ]; then
-    wasm-pack build --out-dir ../www/pkg --release
+  wasm-pack build --out-dir ../www/pkg --release
 else
-    wasm-pack build --out-dir ../www/pkg
+  wasm-pack build --out-dir ../www/pkg
 fi
 
 cd ../www

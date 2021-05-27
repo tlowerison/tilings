@@ -1,9 +1,9 @@
 #![feature(extend_one)]
 
-mod tile;
-mod tiling;
 mod patch;
+mod tiling;
+mod tilings;
 
-pub use self::tile::*;
-pub use self::tiling::*;
 pub use self::patch::*;
+pub use self::tiling::*;
+pub use self::tilings::*;

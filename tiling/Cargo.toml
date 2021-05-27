@@ -12,3 +12,13 @@ float-cmp = "0.8.0"
 geometry = { path = "../geometry" }
 indexmap = "1.6.2"
 itertools = "0.10.0"
+rmp-serde = "0.15.4"
+serde = { version = "1.0", features = ["derive"] }
+tile = { path = "../tile" }
+tiling-config = { path = "../tiling-config" }
+
+[build-dependencies]
+rmp-serde = "0.15.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.8.17"
+tiling-config = { path = "../tiling-config" }

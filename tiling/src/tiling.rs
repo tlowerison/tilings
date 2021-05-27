@@ -1,11 +1,10 @@
-use crate::tile::ProtoTile;
 use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
 use float_cmp::ApproxEq;
-use geometry::{Euclid, Point, Transformable, ORIGIN};
-use itertools::{izip, Itertools};
+use geometry::{Euclid, Point, ORIGIN, Transformable};
+use itertools::{Itertools, izip};
 use std::{collections::HashSet, f64::consts::{PI, TAU}, iter};
-
-// abstract graph - tiling
+use tile::ProtoTile;
+use tiling_config;
 
 #[derive(Clone)]
 pub struct ProtoNeighbor {
@@ -44,57 +43,13 @@ impl ProtoVertexStar {
     }
 }
 
-pub mod config {
-    use super::ProtoTile;
-    use itertools::Itertools;
-
-    pub struct Component(
-        pub ProtoTile, /* proto_tile */
-        pub usize,     /* point_index */
-    );
-
-    impl std::fmt::Display for Component {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Component({}, {})", self.0, self.1)
-        }
-    }
-
-    pub struct Neighbor(
-        pub usize, /* proto_vertex_star_index */
-        pub usize, /* neighbor_index */
-        pub bool,  /* parity */
-    );
-
-    impl std::fmt::Display for Neighbor {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Neighbor({}, {}, {})", self.0, self.1, self.2)
-        }
-    }
-
-    pub struct Vertex {
-        pub components: Vec<Component>,
-        pub neighbors: Vec<Neighbor>, // components[i], neighbors[i], components[i+1]
-    }
-
-    impl std::fmt::Display for Vertex {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Vertex\n  components:\n{}  \n  neighbors:\n{}",
-                self.components.iter().map(|component| format!("  - {}", component)).collect_vec().join("\n"),
-                self.neighbors.iter().map(|neighbor| format!("  - {}", neighbor)).collect_vec().join("\n")
-            )
-        }
-    }
-
-    pub struct Config(pub Vec<Vertex>);
-}
-
 pub struct Tiling {
     pub proto_tiles: Vec<ProtoTile>,
     pub proto_vertex_stars: Vec<ProtoVertexStar>,
 }
 
 impl Tiling {
-    pub fn new(config: config::Config) -> Result<Tiling, String> {
+    pub fn new(config: tiling_config::Tiling) -> Result<Tiling, String> {
         let mut all_proto_tiles: Vec<Vec<ProtoTile>> = Vec::with_capacity(config.0.len());
         for (i, vertex) in config.0.iter().enumerate() {
             let mut proto_tiles: Vec<ProtoTile> = Vec::with_capacity(vertex.components.len());
