@@ -1002,6 +1002,7 @@ name = "tiling-config"
 version = "0.1.0"
 dependencies = [
  "common",
+ "geometry",
  "itertools",
  "serde",
  "tile",

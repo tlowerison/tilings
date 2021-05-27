@@ -1,9 +1,12 @@
 #![feature(extend_one)]
 use common::to_rad;
+use geometry::{Euclid, ORIGIN, Point, Transformable};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tile::{ProtoTile, regular_polygon, star_polygon};
+
+const X: Point = Point(1., 0.);
 
 pub struct Component(
     pub ProtoTile, /* proto_tile */
@@ -47,6 +50,8 @@ pub struct Tiling(pub Vec<Vertex>);
 #[derive(Deserialize, Serialize)]
 #[serde(tag = "type")]
 pub enum SerializedProtoTile {
+    #[serde(rename = "custom")]
+    Custom { sides: Vec<(/* length */ f64, /* relative rotation */ f64)> },
     #[serde(rename = "regular")]
     Regular { side_length: f64, num_sides: usize },
     #[serde(rename = "star")]
@@ -56,6 +61,19 @@ pub enum SerializedProtoTile {
 impl SerializedProtoTile {
     pub fn as_proto_tile(&self) -> ProtoTile {
         match self {
+            SerializedProtoTile::Custom { sides } => {
+                let mut point = ORIGIN.clone();
+                let mut rotation = 0.;
+
+                let mut points: Vec<Point> = Vec::with_capacity(sides.len() + 1);
+                points.extend_one(point.clone());
+                for (length, relative_rotation) in sides.iter() {
+                    rotation += to_rad(180. - relative_rotation);
+                    point = &point + &X.mul(*length).transform(&Euclid::Rotate(rotation));
+                    points.extend_one(point.clone());
+                }
+                ProtoTile::new(points)
+            },
             SerializedProtoTile::Regular { side_length, num_sides } => regular_polygon(*side_length, *num_sides),
             SerializedProtoTile::Star { side_length, num_base_sides, internal_angle } => star_polygon(*side_length, *num_base_sides, to_rad(*internal_angle)),
         }
@@ -108,17 +126,25 @@ impl SerializedNeighbor {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct SerializedVertex {
-    pub components: Vec<SerializedComponent>,
-    pub neighbors: Vec<SerializedNeighbor>,
+pub struct SerializedVertex(pub Vec<SerializedComponent>);
+
+#[derive(Deserialize, Serialize)]
+pub struct SerializedAdjacency {
+    vertex: usize,
+    neighbors: Vec<SerializedNeighbor>,
 }
 
-impl SerializedVertex {
-    pub fn as_vertex(&self, proto_tiles: &HashMap<String, ProtoTile>) -> Result<Vertex, String> {
-        let mut components: Vec<Component> = Vec::with_capacity(self.components.len());
-        let mut neighbors: Vec<Neighbor> = Vec::with_capacity(self.neighbors.len());
+impl SerializedAdjacency {
+    pub fn as_vertex(&self, proto_tiles: &HashMap<String, ProtoTile>, ser_vertices: &Vec<SerializedVertex>) -> Result<Vertex, String> {
+        let ser_components = match ser_vertices.get(self.vertex) {
+            Some(ser_vertex) => &ser_vertex.0,
+            None => return Err(format!("out of bounds vertex index {}", self.vertex)),
+        };
+        let ser_neighbors = &self.neighbors;
+        let mut components: Vec<Component> = Vec::with_capacity(ser_components.len());
+        let mut neighbors: Vec<Neighbor> = Vec::with_capacity(ser_neighbors.len());
 
-        for ser_component in self.components.iter() {
+        for ser_component in ser_components.iter() {
             let component = match ser_component.as_component(&proto_tiles) {
                 Ok(component) => component,
                 Err(e) => return Err(e),
@@ -126,7 +152,7 @@ impl SerializedVertex {
             components.extend_one(component);
         }
 
-        for ser_neighbor in self.neighbors.iter() {
+        for ser_neighbor in ser_neighbors.iter() {
             let neighbor = match ser_neighbor.as_neighbor() {
                 Ok(neighbor) => neighbor,
                 Err(e) => return Err(e),
@@ -144,14 +170,15 @@ pub struct SerializedTiling {
     #[serde(rename = "prototiles")]
     pub proto_tiles: HashMap<String, SerializedProtoTile>,
     pub vertices: Vec<SerializedVertex>,
+    pub adjacencies: Vec<SerializedAdjacency>
 }
 
 impl SerializedTiling {
     pub fn as_tiling(&self) -> Result<Tiling, String> {
         let proto_tiles: HashMap<String, ProtoTile> = self.proto_tiles.iter().map(|(name, ser_proto_tile)| (name.clone(), ser_proto_tile.as_proto_tile())).collect();
         let mut vertices: Vec<Vertex> = Vec::with_capacity(self.vertices.len());
-        for ser_vertex in self.vertices.iter() {
-            let vertex = match ser_vertex.as_vertex(&proto_tiles) {
+        for ser_adjacency in self.adjacencies.iter() {
+            let vertex = match ser_adjacency.as_vertex(&proto_tiles, &self.vertices) {
                 Ok(vertex) => vertex,
                 Err(e) => return Err(e),
             };
@@ -162,15 +189,15 @@ impl SerializedTiling {
 
     pub fn obfuscate_proto_tile_names(mut self) -> SerializedTiling {
         let new_proto_tile_names: HashMap<String, String> = self.proto_tiles.keys().enumerate().map(|(i, name)| (name.clone(), SerializedTiling::obfuscated_name(i))).collect();
+        self.labels.append(&mut self.proto_tiles.keys().map(|name| name.clone()).collect_vec());
         self.proto_tiles = self.proto_tiles.into_iter().map(|(name, proto_tile)| (new_proto_tile_names.get(&name).unwrap().clone(), proto_tile)).collect();
-        self.vertices = self.vertices.into_iter().map(|vertex| SerializedVertex {
-            neighbors: vertex.neighbors,
-            components: vertex.components.into_iter().map(|mut ser_component| {
+        self.vertices = self.vertices.into_iter().map(|vertex| SerializedVertex(
+            vertex.0.into_iter().map(|mut ser_component| {
                 let new_name = new_proto_tile_names.get(&ser_component.prototile).unwrap().clone();
                 ser_component.update_name(new_name);
                 ser_component
             }).collect()
-        }).collect();
+        )).collect();
         self
     }
 

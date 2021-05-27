@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 common = { path = "../common" }
+geometry = { path = "../geometry" }
 itertools = "0.10.0"
 serde = { version = "1.0", features = ["derive"] }
 tile = { path = "../tile" }
