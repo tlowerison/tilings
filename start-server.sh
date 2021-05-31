@@ -4,6 +4,7 @@ set -e
 CONFIG=release
 mkdir -p www/pkg
 
+cd rust
 rustup target add wasm32-unknown-unknown
 
 if [ -z "$(which wasm-pack)" ]
@@ -12,11 +13,9 @@ then
 fi
 
 cd wasm
-if [ "${CONFIG}" = "release" ]; then
-  wasm-pack build --out-dir ../www/pkg --release
-else
-  wasm-pack build --out-dir ../www/pkg
-fi
+wasm-pack build --out-dir ../../www/pkg --release
 
-cd ../www
-yarn add ./pkg && yarn && yarn start
+cd ../../www
+yarn add ./pkg
+yarn
+yarn start

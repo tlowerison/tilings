@@ -4,27 +4,35 @@ FROM rust:1.52.1 AS build-rust
   RUN [ -z "$(which wasm-pack)" ] && cargo install wasm-pack
 
   WORKDIR /app
+
   RUN mkdir -p www
   RUN mkdir -p www/pkg
-  COPY ["[^www]/.", "."]
-  RUN ls
-  RUN cd wasm && wasm-pack build --out-dir ../www/pkg --release
+  COPY rust rust
 
-FROM node:8.16 as build-js
+  WORKDIR /app/rust/wasm
+
+  RUN wasm-pack build --out-dir ../../www/pkg --release
+
+FROM node:12.20.2 as build-js
 
   RUN apt-get update && apt-get install -y jq
-  COPY www .
-  COPY --from=build-rust /app /app
+
   WORKDIR /app/www
-  RUN ls
+
+  RUN mkdir -p pkg
+  COPY www/package.json www/yarn.lock ./
   RUN yarn --ignore-engines
-  RUN yarn add ./pkg
+  COPY --from=build-rust /app/www/pkg ./pkg
+  RUN yarn add ./pkg --ignore-engines
+  RUN yarn --ignore-engines
+  COPY www ./
   RUN yarn build
 
 FROM nginx:1.21.0
 
   COPY nginx /etc/nginx
   COPY --from=build-js /app/www/dist /usr/share/nginx/html
+  RUN ROOT=/usr/share/nginx/html envsubst < /etc/nginx/nginx.conf.template | sed -e 's/§/$/g' > /etc/nginx/nginx.conf
 
   EXPOSE 3000
   CMD ["nginx", "-g", "daemon off;"]

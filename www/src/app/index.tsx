@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Canvas, clearCanvas } from "./canvas";
 import { get_tilings, handle_event, set_tiling } from "pkg";
-import { clearCanvas } from "utils";
 import styles from "./styles.module.scss";
 
 const canvasWidth = window.outerWidth - 100;
 const canvasHeight = window.outerHeight - 150;
-const translateX = canvasWidth / 2;
-const translateY = canvasHeight / 2;
 
 export const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -21,20 +19,6 @@ export const App = () => {
       setTilings(JSON.parse(tilings));
     }
   }, []);
-
-  useEffect(
-    () => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-        canvas.style.width = canvasWidth + "px";
-        canvas.style.height = canvasHeight + "px";
-        canvas.getContext("2d")?.translate(translateX, translateY);
-      }
-    },
-    [canvasRef.current],
-  );
 
   return (
     <>
@@ -60,17 +44,11 @@ export const App = () => {
           <option value={name} selected={name === selected}>{name}</option>
         ))}
       </select>
-      <canvas
+      <Canvas
         ref={canvasRef}
-        onMouseMove={({ clientX, clientY }) => {
-          const canvas = canvasRef.current;
-          if (canvas) {
-            const rect = canvas.getBoundingClientRect();
-            const x = (clientX - rect.left) / (rect.right - rect.left) * canvas.width - translateX;
-            const y = (clientY - rect.top) / (rect.bottom - rect.top) * canvas.height - translateY;
-            handle_event(canvas, x, y);
-          }
-        }}
+        height={canvasHeight}
+        width={canvasWidth}
+        onMouseMove={(x, y, canvas) => handle_event(canvas, x, y)}
       />
     </>
   );

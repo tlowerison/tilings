@@ -12,17 +12,20 @@ http {
     keepalive_timeout 65;
 
     server {
-        listen 3000;
+        listen 3000 default_server;
         server_name localhost;
 
-        location / {
-            root /usr/share/nginx/html;
-            index index.html index.htm;
+        root '${ROOT}';
+        index index.html index.htm;
+
+        # Any route containing a file extension (e.g. /devicesfile.js)
+        location ~ ^.+\..+§ {
+          try_files §uri =404;
         }
 
-        error_page 500 502 503 504  /50x.html;
-        location = /50x.html {
-            root html;
+        # Any route that doesn't have a file extension (e.g. /devices)
+        location / {
+            try_files §uri §uri/ /index.html;
         }
 
         gzip on;
@@ -34,6 +37,4 @@ http {
         gzip_buffers 16 8k;
         gzip_http_version 1.1;
     }
-
-    include servers/*;
 }

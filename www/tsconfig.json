@@ -9,7 +9,7 @@
     "jsx": "preserve",
     "jsxImportSource": "preact",
     "lib": [
-      "es2015",
+      "es2019",
       "dom",
       "dom.iterable"
     ],

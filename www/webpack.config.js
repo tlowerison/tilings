@@ -16,10 +16,14 @@ module.exports = {
   devServer: {
     contentBase: path.join(__dirname, "dist"),
     compress: true,
+    historyApiFallback: true,
     hot: true,
     port: 3000,
   },
   entry: "./src/index.tsx",
+  experiments: {
+    asyncWebAssembly: true,
+  },
   output: {
     publicPath,
     path: path.join(__dirname, "dist", publicPath),

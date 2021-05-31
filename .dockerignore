@@ -1,4 +1,7 @@
-/target
+/nginx/nginx.conf
+/nginx/*.log
+/rust/target
+/www/dist
 /www/node_modules
 /www/pkg
 Dockerfile
