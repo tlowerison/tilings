@@ -1,5 +1,5 @@
 extern crate console_error_panic_hook;
-
+extern crate serde_json;
 use crate::coloring::Coloring;
 use geometry::*;
 use plotters::prelude::*;
@@ -25,10 +25,20 @@ const TO_CANVAS_AFFINE: Affine = Affine([[SCALE, 0.], [0., -SCALE]], [CENTER.0, 
 const FROM_CANVAS_AFFINE: Affine = Affine([[1./SCALE, 0.], [0., -1./SCALE]], [-CENTER.0 / SCALE, CENTER.1/SCALE]);
 
 #[wasm_bindgen]
-pub fn init() -> JsValue {
+pub fn get_tilings() -> JsValue {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
-    tiling::init();
-    JsValue::from_str(&format!("[\"{}\"]", tiling::options().join("\", \"")))
+    match &tiling::ser_tilings() {
+        Some(ser_tilings) => {
+            match serde_json::to_string(&ser_tilings) {
+                Ok(str) => JsValue::from_str(&str),
+                Err(_) => JsValue::NULL,
+            }
+        },
+        None => {
+            tiling::init();
+            get_tilings()
+        }
+    }
 }
 
 #[wasm_bindgen]

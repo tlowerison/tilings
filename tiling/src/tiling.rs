@@ -80,7 +80,7 @@ impl Tiling {
                 proto_tile = proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
                 proto_tile.reorient(&ORIGIN);
 
-                proto_tiles.extend_one(proto_tile);
+                proto_tiles.extend(vec![proto_tile]);
                 rotation += angle;
             }
             if !rotation.approx_eq(TAU, DEFAULT_F64_MARGIN) {
@@ -101,7 +101,7 @@ impl Tiling {
                         Some(neighbor_proto_tile) => neighbor_proto_tile.points.get(1).unwrap(),
                     },
                 };
-                proto_neighbors.extend_one(ProtoNeighbor {
+                proto_neighbors.extend(vec![ProtoNeighbor {
                     proto_vertex_star_index: neighbor.0,
                     neighbor_index: neighbor.1,
                     transform: VertexStarTransform {
@@ -111,13 +111,13 @@ impl Tiling {
                     },
                     forward_tile_index: i,
                     reverse_tile_index: (i + proto_tiles.len() - 1) % proto_tiles.len(),
-                });
+                }]);
             }
-            proto_vertex_stars.extend_one(ProtoVertexStar {
+            proto_vertex_stars.extend(vec![ProtoVertexStar {
                 index: i,
                 proto_tiles: proto_tiles.clone(),
                 proto_neighbors,
-            });
+            }]);
         }
 
         let mut proto_tiles: HashSet<ProtoTile> = HashSet::default();

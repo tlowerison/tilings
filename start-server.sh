@@ -19,5 +19,4 @@ else
 fi
 
 cd ../www
-yarn add ./pkg
-yarn start
+yarn add ./pkg && yarn && yarn start

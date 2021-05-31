@@ -1,4 +1,3 @@
-#![feature(extend_one)]
 use common::to_rad;
 use geometry::{Euclid, ORIGIN, Point, Transformable};
 use itertools::Itertools;
@@ -66,11 +65,11 @@ impl SerializedProtoTile {
                 let mut rotation = 0.;
 
                 let mut points: Vec<Point> = Vec::with_capacity(sides.len() + 1);
-                points.extend_one(point.clone());
+                points.extend(vec![point.clone()]);
                 for (length, relative_rotation) in sides.iter() {
                     rotation += to_rad(180. - relative_rotation);
                     point = &point + &X.mul(*length).transform(&Euclid::Rotate(rotation));
-                    points.extend_one(point.clone());
+                    points.extend(vec![point.clone()]);
                 }
                 ProtoTile::new(points)
             },
@@ -149,7 +148,7 @@ impl SerializedAdjacency {
                 Ok(component) => component,
                 Err(e) => return Err(e),
             };
-            components.extend_one(component);
+            components.extend(vec![component]);
         }
 
         for ser_neighbor in ser_neighbors.iter() {
@@ -157,7 +156,7 @@ impl SerializedAdjacency {
                 Ok(neighbor) => neighbor,
                 Err(e) => return Err(e),
             };
-            neighbors.extend_one(neighbor);
+            neighbors.extend(vec![neighbor]);
         }
 
         Ok(Vertex { components, neighbors })
@@ -182,7 +181,7 @@ impl SerializedTiling {
                 Ok(vertex) => vertex,
                 Err(e) => return Err(e),
             };
-            vertices.extend_one(vertex);
+            vertices.extend(vec![vertex]);
         }
         Ok(Tiling(vertices))
     }
@@ -208,9 +207,9 @@ impl SerializedTiling {
         for _ in 0 .. len {
             let remainder = (val % 52) as u8;
             if remainder < 26 {
-                chars.extend_one(65 + remainder);
+                chars.extend(vec![65 + remainder]);
             } else {
-                chars.extend_one(97 + remainder);
+                chars.extend(vec![97 + remainder]);
             }
             val /= 52;
         }

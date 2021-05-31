@@ -1,4 +1,4 @@
-import { handle_event, init, set_tiling } from "cellular-automata";
+import { handle_event, init, set_tiling } from "pkg";
 
 const canvas = document.getElementById("canvas");
 const canvasContext = canvas.getContext("2d");
@@ -6,23 +6,6 @@ const select = document.getElementById("select-tiling");
 const setTiling = tilingType => canvasContext.clear(true) && console.log(set_tiling(canvas, tilingType));
 let translateX = 0;
 let translateY = 0;
-
-CanvasRenderingContext2D.prototype.clear = CanvasRenderingContext2D.prototype.clear || function (preserveTransform) {
-  this.beginPath();
-  if (preserveTransform) {
-    this.save();
-    this.canvas.style.opacity = "0%";
-    this.setTransform(1, 0, 0, 1, 0, 0);
-  }
-
-  this.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-  if (preserveTransform) {
-    this.restore();
-    this.canvas.style.opacity = "100%";
-  }
-  return true;
-};
 
 export const main = () => setupUI() && setupCanvas();
 
@@ -63,3 +46,5 @@ const setupCanvas = () => {
   canvasContext.translate(translateX, translateY);
   return true;
 };
+
+main();

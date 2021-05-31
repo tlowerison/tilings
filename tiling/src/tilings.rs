@@ -35,14 +35,8 @@ pub fn get_tiling(name: &str) -> Result<Tiling, String> {
     }
 }
 
-pub fn options() -> Vec<String> {
+pub fn ser_tilings() -> &'static Option<SerializedTilings> {
     unsafe {
-        match &SER_TILINGS {
-            Some(ser_tilings) => ser_tilings.0.keys().map(|name| name.clone()).collect::<Vec<String>>(),
-            None => {
-                init();
-                options()
-            }
-        }
+        &SER_TILINGS
     }
 }

@@ -1,5 +1,3 @@
-#![feature(extend_one)]
-
 mod patch;
 mod tiling;
 mod tilings;
