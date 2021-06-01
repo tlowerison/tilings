@@ -6,13 +6,13 @@ events {
 
 http {
     include mime.types;
-    default_type  application/octet-stream;
+    default_type application/octet-stream;
 
     sendfile on;
     keepalive_timeout 65;
 
     server {
-        listen 3000 default_server;
+        listen 80 default_server;
         server_name localhost;
 
         root '${ROOT}';
@@ -20,12 +20,16 @@ http {
 
         # Any route containing a file extension (e.g. /devicesfile.js)
         location ~ ^.+\..+§ {
-          try_files §uri =404;
+            try_files §uri =404;
         }
 
         # Any route that doesn't have a file extension (e.g. /devices)
-        location / {
-            try_files §uri §uri/ /index.html;
+        location /tilings {
+            try_files §uri /tilings/index.html;
+        }
+
+        location ~ ^(.+)/§ {
+            return 301 §scheme://§host§1;
         }
 
         gzip on;

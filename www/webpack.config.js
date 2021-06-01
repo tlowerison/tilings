@@ -9,7 +9,7 @@ const reactRefresh = require("react-refresh/babel");
 const webpack = require("webpack");
 
 const isDevelopment = process.env.NODE_ENV !== "production";
-const publicPath = "/";
+const publicPath = "/tilings/";
 const shouldProfile = process.env.PROFILE === "true";
 
 module.exports = {
