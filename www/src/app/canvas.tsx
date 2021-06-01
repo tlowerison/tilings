@@ -25,11 +25,13 @@ const pointHandlers = [
   "onTouchStartCapture",
 ] as const;
 
+type PointHandler = (canvas: HTMLCanvasElement, x: number, y: number) => void;
+
 export type Props = {
   height: number;
   width: number;
 } & {
-  [K in ArrayValue<typeof pointHandlers>]?: (x: number, y: number, canvas: HTMLCanvasElement) => void;
+  [K in ArrayValue<typeof pointHandlers>]?: PointHandler;
 };
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(
@@ -49,13 +51,13 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(
     );
 
     const wrapHandler = useCallback(
-      (handler: (x: number, y: number, canvas?: HTMLCanvasElement) => void) => (({ clientX, clientY }) => {
+      (handler: PointHandler) => (({ clientX, clientY }) => {
         const canvas = mutableRef?.current;
         if (canvas) {
           const rect = canvas.getBoundingClientRect();
           const x = (clientX - rect.left) / (rect.right - rect.left) * canvas.width - width / 2;
           const y = (clientY - rect.top) / (rect.bottom - rect.top) * canvas.height - height / 2;
-          handler(x, y, canvas);
+          handler(canvas, x, y);
         }
       }),
       [mutableRef?.current],

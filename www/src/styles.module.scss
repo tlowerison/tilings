@@ -5,8 +5,9 @@ html, body {
 
 @media (max-width: 800px) {
   body {
-    padding: 10px;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: hidden;
   }
 }
 

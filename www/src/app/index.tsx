@@ -3,8 +3,14 @@ import { Canvas, clearCanvas } from "./canvas";
 import { get_tilings, handle_event, set_tiling } from "pkg";
 import styles from "./styles.module.scss";
 
-const canvasWidth = window.outerWidth - 100;
-const canvasHeight = window.outerHeight - 150;
+const isMobile = () => window.outerWidth > 800;
+
+const canvasWidth = isMobile()
+  ? window.outerWidth - 100
+  : window.outerWidth;
+const canvasHeight = isMobile()
+  ? window.outerHeight - 150
+  : window.outerHeight - 120;
 
 export const App = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -48,7 +54,8 @@ export const App = () => {
         ref={canvasRef}
         height={canvasHeight}
         width={canvasWidth}
-        onMouseMove={(x, y, canvas) => handle_event(canvas, x, y)}
+        onMouseMove={handle_event}
+        onTouchMove={handle_event}
       />
     </>
   );

@@ -6,6 +6,7 @@
   "main": "./src/index.tsx",
   "scripts": {
     "build": "rm -rf ./dist; NODE_ENV=production webpack",
+    "restart:local": "yarn build && yarn start:nginx:local",
     "start": "webpack serve",
     "start:nginx:local": "yarn stop:nginx:local; ROOT=$PWD/dist envsubst < ../nginx/nginx.conf.template | sed -e 's/§/$/g' > ../nginx/nginx.conf && nginx -c $PWD/../nginx/nginx.conf && brew services restart nginx",
     "stop:nginx:local": "brew services stop nginx; lsof -i :80 | grep nginx | sed 's/nginx *//' | sed 's/ .*//' | xargs -n1 kill -9"
