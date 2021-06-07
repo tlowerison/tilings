@@ -4,7 +4,7 @@ set -e
 CONFIG=release
 mkdir -p www/pkg
 
-cd rust
+cd rust/client
 rustup target add wasm32-unknown-unknown
 
 if [ -z "$(which wasm-pack)" ]
@@ -13,9 +13,9 @@ then
 fi
 
 cd wasm
-wasm-pack build --out-dir ../../www/pkg --release
+wasm-pack build --out-dir ../../../www/pkg --release
 
-cd ../../www
+cd ../../../www
 yarn add ./pkg
 yarn
 yarn start

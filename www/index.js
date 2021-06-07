@@ -1,4 +1,4 @@
-import { handle_event, init, set_tiling } from "pkg";
+import { handle_event, init, set_tiling } from "wasm";
 
 const canvas = document.getElementById("canvas");
 const canvasContext = canvas.getContext("2d");

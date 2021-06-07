@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Canvas, clearCanvas } from "./canvas";
-import { get_tilings, handle_event, set_tiling } from "pkg";
+import { get_tilings, handle_event, set_tiling } from "wasm";
 import styles from "./styles.module.scss";
 
 const isMobile = () => window.outerWidth > 800;

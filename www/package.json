@@ -12,10 +12,10 @@
     "stop:nginx:local": "brew services stop nginx; lsof -i :80 | grep nginx | sed 's/nginx *//' | sed 's/ .*//' | xargs -n1 kill -9"
   },
   "dependencies": {
-    "pkg": "file:./pkg",
     "preact": "^10.5.9",
     "react": "^16.13.1",
-    "react-dom": "^16.13.1"
+    "react-dom": "^16.13.1",
+    "wasm": "./pkg"
   },
   "devDependencies": {
     "@babel/cli": "^7.14.3",
