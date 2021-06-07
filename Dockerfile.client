@@ -9,9 +9,9 @@ FROM rust:1.52.1 AS build-rust
   RUN mkdir -p www/pkg
   COPY rust rust
 
-  WORKDIR /app/rust/wasm
+  WORKDIR /app/rust/client/wasm
 
-  RUN wasm-pack build --out-dir ../../www/pkg --release
+  RUN wasm-pack build --out-dir ../../../www/pkg --release
 
 FROM node:12.20.2 as build-js
 

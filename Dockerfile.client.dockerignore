@@ -1,0 +1,12 @@
+*
+
+!/nginx/mime.types
+!/nginx/nginx.conf.template
+
+!/rust/client
+/rust/client/target
+
+!/www
+/www/dist
+/www/node_modules
+/www/pkg
