@@ -1,3 +1,0 @@
-development:
-  driver: mysql
-  open: $DB_USER:$DB_PASSWORD@$DB_SCHEME($DB_HOST:$DB_PORT)/$DB_NAME
