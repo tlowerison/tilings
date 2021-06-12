@@ -1,0 +1,1 @@
+DELETE FROM Label WHERE Id >= 1 AND Id <= 13;
