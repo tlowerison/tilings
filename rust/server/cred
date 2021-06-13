@@ -1,13 +1,12 @@
 #!/bin/sh
 env="$1"
-if [[ "$env" == "" ]] || (($# < 3)); then
+if [[ "$env" == "" ]] || (($# < 2)); then
   echo Missing environment argument.
   exit 1
 fi
 
-DATABASE_URL=$(credential-1password get --mode="tilings-db-$env") || exit 1
+set -a
+source /dev/stdin <<<"$(credential-1password get --mode="tilings-db-$env") || exit 1"
+set +a
 
-DATABASE_URL="$DATABASE_URL" \
-ROCKET_DATABASES="{pg_db={url=\"$DATABASE_URL\"}}" \
-ROCKET_ENV="$env" \
-${@:2}
+ROCKET_ENV="$env" ${@:2}

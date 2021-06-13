@@ -1,0 +1,26 @@
+FROM rust:1.52.1 AS build-rust
+
+  WORKDIR /app/rust/server
+
+  COPY \
+    rust/server/Cargo.toml \
+    rust/server/Cargo.lock \
+    rust/server/rust-toolchain.toml \
+    .
+
+  RUN \
+    mkdir -p src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo fetch
+
+  COPY rust/server/ .
+
+  RUN cargo build --release
+
+FROM scratch
+
+  WORKDIR /app
+
+  COPY --from=build-rust /app/rust/server/target/release/server /app/server
+
+  EXPOSE 8000

@@ -7,7 +7,7 @@ FROM rust:1.52.1 AS build-rust
 
   RUN mkdir -p www
   RUN mkdir -p www/pkg
-  COPY rust rust
+  COPY rust/client rust/client
 
   WORKDIR /app/rust/client/wasm
 
