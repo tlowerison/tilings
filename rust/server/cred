@@ -6,7 +6,7 @@ if [[ "$env" == "" ]] || (($# < 2)); then
 fi
 
 set -a
-source /dev/stdin <<<"$(credential-1password get --mode="tilings-db-$env") || exit 1"
+source /dev/stdin <<<"$(credential-1password get --mode="tilings-db-$env" || exit 1)"
 set +a
 
 ROCKET_ENV="$env" ${@:2}

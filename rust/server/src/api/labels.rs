@@ -3,7 +3,7 @@ use super::super::{
     models::{Label, TilingLabelPost},
     queries,
 };
-use rocket::{get, post, serde::json::Json};
+use rocket::serde::json::Json;
 
 #[get("/match-labels?<query>")]
 pub async fn match_labels(query: String, db: DbConn) -> Result<Json<Vec<Label>>> {

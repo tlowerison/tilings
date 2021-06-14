@@ -1,0 +1,20 @@
+#!/bin/sh
+component="$1"
+version="$2"
+
+if [[ "$component" == "" ]]; then
+  echo "missing component"
+  exit 1
+fi
+
+if [[ "$version" == "" ]]; then
+  echo "missing version"
+  exit 1
+fi
+
+if [[ "$component" != "client" && "$component" != "server" ]]; then
+  echo "unknown component $component"
+  exit 1
+fi
+
+docker push "tlowerison/tilings-$component:$version"

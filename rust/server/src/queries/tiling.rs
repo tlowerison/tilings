@@ -1,14 +1,12 @@
 use super::super::{
     connection::{DbConn, Result},
     models::{
-        Label,
         Tiling,
         TilingLabel,
         TilingPatch,
         TilingPost,
     },
     schema::{
-        label::dsl::label,
         tiling::{dsl::tiling, table as tiling_table},
         tilinglabel::dsl::tilinglabel,
     },

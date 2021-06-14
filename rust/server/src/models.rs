@@ -1,5 +1,4 @@
 use super::schema::*;
-use mashup::*;
 use rocket::{
     data::{Data, FromData, Outcome, ToByteUnit},
     http::Status,

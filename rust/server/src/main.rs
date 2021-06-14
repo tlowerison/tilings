@@ -6,12 +6,15 @@ pub mod models;
 pub mod queries;
 pub mod schema;
 
-#[macro_use]
-extern crate diesel;
-extern crate mashup;
-extern crate rocket;
+#[macro_use] extern crate diesel;
+#[macro_use] extern crate diesel_migrations;
+#[macro_use] extern crate mashup;
+#[macro_use] extern crate rocket;
 
-use rocket::{launch, routes};
+use diesel::prelude::*;
+use diesel::pg::PgConnection;
+
+embed_migrations!();
 
 fn get_database_url(user: String, password: String, hostname: String, port: String, dbname: String) -> String {
     format!(
@@ -24,7 +27,8 @@ fn get_database_url(user: String, password: String, hostname: String, port: Stri
     )
 }
 
-fn set_env() {
+// returns DATABASE_URL
+fn set_env() -> String {
     // pulled from shared secret
     let user = std::env::var("POSTGRES_USER").unwrap();
     let password = std::env::var("POSTGRES_PASSWORD").unwrap();
@@ -40,12 +44,18 @@ fn set_env() {
     let database_url = get_database_url(user, password, hostname, port, dbname);
 
     std::env::set_var("DATABASE_URL", database_url.clone());
-    std::env::set_var("ROCKET_DATABASES", format!("{{pg_db={{url=\"{}\"}}}}", database_url));
+    std::env::set_var("ROCKET_DATABASES", format!("{{pg_db={{url=\"{}\"}}}}", database_url.clone()));
+
+    database_url
 }
 
 #[launch]
 fn rocket() -> _ {
-    set_env();
+    let database_url = set_env();
+
+    embedded_migrations::run(
+        &PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
+    ).expect(&format!("Error running pending migrations"));
 
     rocket::build().mount("/", routes![
         api::get_tiling,

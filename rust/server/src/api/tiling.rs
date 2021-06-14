@@ -1,7 +1,6 @@
 use super::super::{
     connection::{DbConn, Result},
     models::{
-        Label,
         Tiling,
         TilingLabel,
         TilingPatch,
@@ -9,7 +8,7 @@ use super::super::{
     },
     queries,
 };
-use rocket::{delete, get, patch, post, serde::json::Json};
+use rocket::serde::json::Json;
 
 #[get("/tiling/<id>")]
 pub async fn get_tiling(id: i32, db: DbConn) -> Result<Json<Vec<(Tiling, TilingLabel)>>> {
