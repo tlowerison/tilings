@@ -243,19 +243,19 @@ crud! {
         sequence: i32,
     },
 
-    "atlas", atlas,,
+    "atlas", atlas, Tiling TilingType,
     struct Atlas {
         tiling_id: i32,
         tiling_type_id: i32,
     },
 
-    "atlasvertex", atlasvertex,,
+    "atlasvertex", atlasvertex, Atlas,
     struct AtlasVertex {
         atlas_id: i32,
         title: Option<String>,
     },
 
-    "atlasvertexprototile", atlasvertexprototile,,
+    "atlasvertexprototile", atlasvertexprototile, AtlasVertex,
     struct AtlasVertexProtoTile {
         atlas_vertex_id: i32,
         polygon_point_id: i32,
