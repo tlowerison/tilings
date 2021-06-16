@@ -2,6 +2,7 @@ table! {
     atlas (id) {
         id -> Int4,
         tilingid -> Int4,
+        tilingtypeid -> Int4,
     }
 }
 
@@ -72,6 +73,7 @@ table! {
     tiling (id) {
         id -> Int4,
         title -> Varchar,
+        tilingtypeid -> Int4,
     }
 }
 
@@ -83,12 +85,22 @@ table! {
     }
 }
 
+table! {
+    tilingtype (id) {
+        id -> Int4,
+        title -> Varchar,
+    }
+}
+
 joinable!(atlas -> tiling (tilingid));
 joinable!(atlasvertex -> atlas (atlasid));
 joinable!(atlasvertexprototile -> atlasvertex (atlasvertexid));
 joinable!(atlasvertexprototile -> polygonpoint (polygonpointid));
 joinable!(polygonlabel -> label (labelid));
 joinable!(polygonlabel -> polygon (polygonid));
+joinable!(polygonpoint -> point (pointid));
+joinable!(polygonpoint -> polygon (polygonid));
+joinable!(tiling -> tilingtype (tilingtypeid));
 joinable!(tilinglabel -> label (labelid));
 joinable!(tilinglabel -> tiling (tilingid));
 
@@ -104,4 +116,5 @@ allow_tables_to_appear_in_same_query!(
     polygonpoint,
     tiling,
     tilinglabel,
+    tilingtype,
 );

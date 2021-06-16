@@ -64,5 +64,6 @@ fn rocket() -> _ {
         api::delete_tiling,
         api::match_labels,
         api::add_label_to_tiling,
+        api::create_polygon,
     ]).attach(connection::DbConn::fairing())
 }

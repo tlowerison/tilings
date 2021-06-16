@@ -1,13 +1,8 @@
-use super::super::{
+use crate::{
     connection::{DbConn, Result},
-    models::{
-        Tiling,
-        TilingLabel,
-        TilingPatch,
-        TilingPost,
-    },
+    models::*,
     schema::{
-        tiling::{dsl::tiling, table as tiling_table},
+        tiling::dsl::tiling,
         tilinglabel::dsl::tilinglabel,
     },
 };
@@ -24,11 +19,7 @@ pub async fn get_tiling(db: DbConn, id: i32) -> Result<Vec<(Tiling, TilingLabel)
 }
 
 pub async fn create_tiling(db: DbConn, tiling_post: TilingPost) -> Result<Tiling> {
-    db.run(move |conn|
-        diesel::insert_into(tiling_table)
-            .values(tiling_post)
-            .get_result(conn)
-    ).await.map_err(Debug)
+    db.run(move |conn| tiling_post.insert(conn)).await
 }
 
 pub async fn update_tiling(db: DbConn, id: i32, tiling_patch: TilingPatch) -> Result<Tiling> {

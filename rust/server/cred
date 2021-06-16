@@ -9,4 +9,6 @@ set -a
 source /dev/stdin <<<"$(credential-1password get --mode="tilings-db-$env" || exit 1)"
 set +a
 
-ROCKET_ENV="$env" ${@:2}
+ROCKET_ENV="$env" \
+DATABASE_URL="postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@$TILINGS_DB_SERVICE_HOST:$TILINGS_DB_SERVICE_PORT/$POSTGRES_DB" \
+${@:2}

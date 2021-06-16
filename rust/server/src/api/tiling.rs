@@ -1,11 +1,6 @@
 use super::super::{
     connection::{DbConn, Result},
-    models::{
-        Tiling,
-        TilingLabel,
-        TilingPatch,
-        TilingPost,
-    },
+    models::*,
     queries,
 };
 use rocket::serde::json::Json;

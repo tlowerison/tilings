@@ -39,7 +39,12 @@ CREATE TABLE IF NOT EXISTS Point (
 
 CREATE TABLE IF NOT EXISTS PolygonPoint (
   Id         SERIAL            PRIMARY KEY,
-  PolygonId  INT     NOT NULL  UNIQUE,
+  PolygonId  INT     NOT NULL,
   PointId    INT     NOT NULL,
-  Sequence   INT     NOT NULL  UNIQUE
+  Sequence   INT     NOT NULL,
+
+  UNIQUE (PolygonId, Sequence),
+
+  FOREIGN KEY (PolygonId) REFERENCES Polygon (Id),
+  FOREIGN KEY (PointId)   REFERENCES Point   (Id)
 );
