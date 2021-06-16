@@ -1,3 +1,3 @@
-DELETE FROM PolygonLabel WHERE LabelId >= 1 AND Id <= 13;
-DELETE FROM TilingLabel WHERE LabelId >= 1 AND Id <= 13;
-DELETE FROM Label WHERE Id >= 1 AND Id <= 13;
+DELETE FROM PolygonLabel WHERE label_id >= 1 AND label_id <= 13;
+DELETE FROM TilingLabel WHERE label_id >= 1 AND label_id <= 13;
+DELETE FROM Label WHERE id >= 1 AND id <= 13;

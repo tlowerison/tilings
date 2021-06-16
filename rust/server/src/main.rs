@@ -58,12 +58,12 @@ fn rocket() -> _ {
     ).expect(&format!("Error running pending migrations"));
 
     rocket::build().mount("/", routes![
-        api::get_tiling,
-        api::create_tiling,
-        api::update_tiling,
-        api::delete_tiling,
         api::match_labels,
-        api::add_label_to_tiling,
+        api::upsert_label,
+        api::delete_label,
+        api::get_polygon,
         api::create_polygon,
+        api::update_polygon,
+        api::delete_polygon,
     ]).attach(connection::DbConn::fairing())
 }

@@ -1,9 +1,12 @@
 use crate::{connection::Result, schema::*};
 use diesel::{
     self,
+    ExpressionMethods,
     Insertable,
+    OptionalExtension,
     PgConnection,
     QueryDsl,
+    result::Error::QueryBuilderError,
     RunQueryDsl,
 };
 use rocket::response::Debug;
@@ -15,13 +18,8 @@ pub trait NestedInsertable {
 
     fn insert(self, conn: &PgConnection) -> Result<Self::Base>;
 
-    fn batch_insert(conn: &PgConnection, insertables: Vec<Self>) -> Result<Vec<Self::Base>> where Self: Sized {
-        let mut results = Vec::<Self::Base>::with_capacity(insertables.len());
-        for (i, insertable) in insertables.into_iter().enumerate() {
-            let result = insertable.insert(conn)?;
-            *(&mut results[i]) = result;
-        }
-        Ok(results)
+    fn batch_insert(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+        insertables.into_iter().map(|insertable| insertable.insert(conn)).collect()
     }
 }
 
@@ -30,13 +28,8 @@ pub trait NestedChangeset {
 
     fn update(self, conn: &PgConnection) -> Result<Self::Base>;
 
-    fn batch_update(conn: &PgConnection, changesets: Vec<Self>) -> Result<Vec<Self::Base>> where Self: Sized {
-        let mut results = Vec::<Self::Base>::with_capacity(changesets.len());
-        for (i, changeset) in changesets.into_iter().enumerate() {
-            let result = changeset.update(conn)?;
-            *(&mut results[i]) = result;
-        }
-        Ok(results)
+    fn batch_update(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+        changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
     }
 }
 
@@ -80,7 +73,7 @@ macro_rules! crud {
     ($(
         $table_name:expr,
         $table:ident,
-        $($belongs_to:ident $foreign_key:expr)*,
+        $($belongs_to:ident)*,
         struct $name:ident {
             $($field_name:ident: $field_type:ty,)*
         }
@@ -93,8 +86,8 @@ macro_rules! crud {
         }
 
         $(
-            #[derive(Associations, Debug, Deserialize, Identifiable, Queryable, Serialize)]
-            $(#[belongs_to($belongs_to, foreign_key = $foreign_key)])*
+            #[derive(Associations, Clone, Debug, Deserialize, Identifiable, Queryable, Serialize)]
+            $(#[belongs_to($belongs_to)])*
             #[table_name = $table_name]
             pub struct $name {
                 pub id: i32,
@@ -104,27 +97,37 @@ macro_rules! crud {
             data! { $name }
 
             impl $name {
-                pub fn find(conn: &PgConnection, id: i32) -> Result<$name> {
+                pub fn find(id: i32, conn: &PgConnection) -> Result<$name> {
                     $crate::schema::$table::table.find(id)
                         .get_result(conn)
                         .map_err(Debug)
                 }
 
-                pub fn batch_find(conn: &PgConnection, ids: Vec<i32>) -> Result<Vec<$name>> {
-                    let mut results = Vec::<$name>::with_capacity(ids.len());
-                    for (i, id) in ids.into_iter().enumerate() {
-                        let result = $crate::schema::$table::table.find(id)
-                            .get_result(conn)
-                            .map_err(Debug)?;
+                pub fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
+                    $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
+                        .load(conn)
+                        .map_err(Debug)
+                }
 
-                        *(&mut results[i]) = result;
-                    }
-                    Ok(results)
+                pub fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
+                    diesel::delete(
+                        $crate::schema::$table::table.filter($crate::schema::$table::id.eq(id))
+                    )
+                        .execute(conn)
+                        .map_err(Debug)
+                }
+
+                pub fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+                    diesel::delete(
+                        $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
+                    )
+                        .execute(conn)
+                        .map_err(Debug)
                 }
             }
 
             Post! {
-                #[derive(Debug, Deserialize, Insertable, Serialize)]
+                #[derive(Clone, Debug, Deserialize, Insertable, Serialize)]
                 #[table_name = $table_name]
                 pub struct $name "Post" {
                     $(pub $field_name: $field_type,)*
@@ -134,6 +137,7 @@ macro_rules! crud {
 
                 impl NestedInsertable for $name "Post" {
                     type Base = $name;
+
                     fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(self)
@@ -141,7 +145,7 @@ macro_rules! crud {
                             .map_err(Debug)
                     }
 
-                    fn batch_insert(conn: &PgConnection, insertables: Vec<Self>) -> Result<Vec<Self::Base>> {
+                    fn batch_insert(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(&insertables)
                             .get_results(conn)
@@ -151,7 +155,7 @@ macro_rules! crud {
             }
 
             Patch! {
-                #[derive(AsChangeset, Debug, Deserialize, Identifiable, Queryable, Serialize)]
+                #[derive(AsChangeset, Clone, Debug, Deserialize, Identifiable, Queryable, Serialize)]
                 #[table_name = $table_name]
                 pub struct $name "Patch" {
                     pub id: i32,
@@ -162,24 +166,29 @@ macro_rules! crud {
 
                 impl NestedChangeset for $name "Patch" {
                     type Base = $name;
+
                     fn update(self, conn: &PgConnection) -> Result<Self::Base> {
-                        diesel::update($crate::schema::$table::table.find(self.id))
+                        let id = self.id.clone();
+                        let result = diesel::update($crate::schema::$table::table.find(id))
                             .set(self)
                             .get_result(conn)
-                            .map_err(Debug)
+                            .optional();
+                        match result {
+                            Ok(row) => match row {
+                                Some(result) => Ok(result),
+                                None => Self::Base::find(id, conn),
+                            },
+                            Err(e) => {
+                                if let QueryBuilderError(_) = e {
+                                    return Self::Base::find(id, conn)
+                                }
+                                return Err(Debug(e))
+                            }
+                        }
                     }
 
-                    fn batch_update(conn: &PgConnection, changesets: Vec<Self>) -> Result<Vec<Self::Base>> {
-                        let mut results = Vec::<Self::Base>::with_capacity(changesets.len());
-                        for (i, changeset) in changesets.into_iter().enumerate() {
-                            let result = diesel::update($crate::schema::$table::table)
-                                .set(changeset)
-                                .get_result(conn)
-                                .map_err(Debug)?;
-
-                            *(&mut results[i]) = result;
-                        }
-                        Ok(results)
+                    fn batch_update(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
+                        changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
                     }
                 }
             }
@@ -198,16 +207,16 @@ crud! {
         content: String,
     },
 
-    "tiling", tiling, TilingType "tilingtypeid",
+    "tiling", tiling, TilingType,
     struct Tiling {
         title: String,
-        tilingtypeid: i32,
+        tiling_type_id: i32,
     },
 
-    "tilinglabel", tilinglabel, Tiling "tilingid" Label "labelid",
+    "tilinglabel", tilinglabel, Tiling Label,
     struct TilingLabel {
-        tilingid: i32,
-        labelid: i32,
+        tiling_id: i32,
+        label_id: i32,
     },
 
     "polygon", polygon,,
@@ -215,10 +224,10 @@ crud! {
         title: String,
     },
 
-    "polygonlabel", polygonlabel, Polygon "polygonid" Label "labelid",
+    "polygonlabel", polygonlabel, Polygon Label,
     struct PolygonLabel {
-        polygonid: i32,
-        labelid: i32,
+        polygon_id: i32,
+        label_id: i32,
     },
 
     "point", point,,
@@ -227,34 +236,34 @@ crud! {
         y: f64,
     },
 
-    "polygonpoint", polygonpoint, Polygon "polygonid" Point "pointid",
+    "polygonpoint", polygonpoint, Polygon Point,
     struct PolygonPoint {
-        polygonid: i32,
-        pointid: i32,
+        polygon_id: i32,
+        point_id: i32,
         sequence: i32,
     },
 
     "atlas", atlas,,
     struct Atlas {
-        tilingid: i32,
-        tilingtypeid: i32,
+        tiling_id: i32,
+        tiling_type_id: i32,
     },
 
     "atlasvertex", atlasvertex,,
     struct AtlasVertex {
-        atlasid: i32,
+        atlas_id: i32,
         title: Option<String>,
     },
 
     "atlasvertexprototile", atlasvertexprototile,,
     struct AtlasVertexProtoTile {
-        atlasvertexid: i32,
-        polygonpointid: i32,
+        atlas_vertex_id: i32,
+        polygon_point_id: i32,
     },
 
     "atlasedge", atlasedge,,
     struct AtlasEdge {
-        sourceid: i32,
-        sinkid: i32,
+        source_id: i32,
+        sink_id: i32,
     }
 }

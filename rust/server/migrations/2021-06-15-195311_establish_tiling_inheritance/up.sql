@@ -1,22 +1,22 @@
 CREATE TABLE IF NOT EXISTS TilingType (
-  Id     SERIAL       PRIMARY KEY,
-  Title  VARCHAR(50)  NOT NULL
+  id     SERIAL       PRIMARY KEY,
+  title  VARCHAR(50)  NOT NULL
 );
 
-INSERT INTO TilingType (Id, Title)
+INSERT INTO TilingType (id, title)
 VALUES
   (1, 'Generic'),
   (2, 'Atlas');
 
 ALTER TABLE Tiling
-  ADD COLUMN TilingTypeId INT NOT NULL DEFAULT 1,
-  ADD FOREIGN KEY (TilingTypeId) REFERENCES TilingType (Id),
-  ADD UNIQUE (Id, TilingTypeId)
+  ADD COLUMN tiling_type_id INT NOT NULL DEFAULT 1,
+  ADD FOREIGN KEY (tiling_type_id) REFERENCES TilingType (id),
+  ADD UNIQUE (id, tiling_type_id)
 ;
 
 ALTER TABLE Atlas
-  ADD COLUMN TilingTypeId INT NOT NULL DEFAULT 2,
-  ADD CHECK (TilingTypeId = 2),
-  DROP CONSTRAINT atlas_tilingid_fkey,
-  ADD FOREIGN KEY (TilingId, TilingTypeId) REFERENCES Tiling (Id, TilingTypeId)
+  ADD COLUMN tiling_type_id INT NOT NULL DEFAULT 2,
+  ADD CHECK (tiling_type_id = 2),
+  DROP CONSTRAINT atlas_tiling_id_fkey,
+  ADD FOREIGN KEY (tiling_id, tiling_type_id) REFERENCES Tiling (id, tiling_type_id)
 ;
