@@ -14,6 +14,26 @@ pub struct FullPolygon {
     pub points: Vec<Point>,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct FullPolygonPost {
+    pub polygon: PolygonPost,
+    pub label_ids: Vec<i32>,
+    pub points: Vec<PointPost>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct FullPolygonPatch {
+    pub polygon: PolygonPatch,
+    pub label_ids: Option<Vec<i32>>, // if present, replace
+    pub points: Option<Vec<PointPost>>, // if present, replace
+}
+
+data! {
+    FullPolygon,
+    FullPolygonPost,
+    FullPolygonPatch
+}
+
 impl FullPolygon {
     pub fn find(id: i32, conn: &PgConnection) -> Result<FullPolygon> {
         let polygon = Polygon::find(id, conn)?;
@@ -42,13 +62,6 @@ impl FullPolygon {
 
         Polygon::delete(id, conn)
     }
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct FullPolygonPost {
-    pub polygon: PolygonPost,
-    pub label_ids: Vec<i32>,
-    pub points: Vec<PointPost>,
 }
 
 impl NestedInsertable for FullPolygonPost {
@@ -80,13 +93,6 @@ impl NestedInsertable for FullPolygonPost {
 
         Ok(FullPolygon { polygon, labels, points })
     }
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct FullPolygonPatch {
-    pub polygon: PolygonPatch,
-    pub label_ids: Option<Vec<i32>>, // if present, replace
-    pub points: Option<Vec<PointPost>>, // if present, replace
 }
 
 impl NestedChangeset for FullPolygonPatch {
@@ -152,10 +158,4 @@ impl NestedChangeset for FullPolygonPatch {
 
         Ok(FullPolygon { polygon, labels, points })
     }
-}
-
-data! {
-    FullPolygon,
-    FullPolygonPost,
-    FullPolygonPatch
 }
