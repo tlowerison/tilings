@@ -1,4 +1,4 @@
-#![recursion_limit="512"]
+#![recursion_limit="1024"]
 
 pub mod api;
 pub mod connection;
@@ -62,8 +62,10 @@ fn rocket() -> _ {
         api::upsert_label,
         api::delete_label,
         api::get_polygon,
+        api::get_polygons,
         api::create_polygon,
         api::update_polygon,
         api::delete_polygon,
+        api::text_search,
     ]).attach(connection::DbConn::fairing())
 }

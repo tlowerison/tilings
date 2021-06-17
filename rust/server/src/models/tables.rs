@@ -103,6 +103,25 @@ macro_rules! crud {
                         .map_err(Debug)
                 }
 
+                pub fn find_all(start_id: Option<i32>, end_id: Option<i32>, limit: u32, conn: &PgConnection) -> Result<Vec<$name>> {
+                    let query = $crate::schema::$table::table
+                        .limit(limit as i64)
+                        .filter($crate::schema::$table::id.ge(
+                            match start_id { Some(start_id) => start_id, None => 0 },
+                        ));
+
+                    if let Some(end_id) = end_id {
+                        return query
+                            .filter($crate::schema::$table::id.lt(end_id))
+                            .get_results(conn)
+                            .map_err(Debug);
+                    }
+
+                    query
+                        .get_results(conn)
+                        .map_err(Debug)
+                }
+
                 pub fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
                     $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                         .load(conn)

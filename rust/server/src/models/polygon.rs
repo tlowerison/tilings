@@ -4,7 +4,7 @@ use crate::{
     models::tables::*,
     schema::{label, point, polygonlabel, polygonpoint},
 };
-use diesel::{self, BelongingToDsl, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl};
+use diesel::{self, prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
