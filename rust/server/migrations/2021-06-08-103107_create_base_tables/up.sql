@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS Label (
-  id       SERIAL                  PRIMARY KEY,
+  id       SERIAL        PRIMARY KEY,
   content  VARCHAR(160)  NOT NULL  UNIQUE
 );
 
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS Tiling (
 );
 
 CREATE TABLE IF NOT EXISTS TilingLabel (
-  id        SERIAL            PRIMARY KEY,
+  id         SERIAL  PRIMARY KEY,
   tiling_id  INT     NOT NULL,
   label_id   INT     NOT NULL,
 
@@ -18,12 +18,12 @@ CREATE TABLE IF NOT EXISTS TilingLabel (
 );
 
 CREATE TABLE IF NOT EXISTS Polygon (
-  id     SERIAL                 PRIMARY KEY,
+  id     SERIAL       PRIMARY KEY,
   title  VARCHAR(80)  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS PolygonLabel (
-  id         SERIAL            PRIMARY KEY,
+  id          SERIAL  PRIMARY KEY,
   polygon_id  INT     NOT NULL,
   label_id    INT     NOT NULL,
 
@@ -32,16 +32,16 @@ CREATE TABLE IF NOT EXISTS PolygonLabel (
 );
 
 CREATE TABLE IF NOT EXISTS Point (
-  id         SERIAL                      PRIMARY KEY,
-  x          DOUBLE PRECISION  NOT NULL,
-  y          DOUBLE PRECISION  NOT NULL
+  id  SERIAL            PRIMARY KEY,
+  x   DOUBLE PRECISION  NOT NULL,
+  y   DOUBLE PRECISION  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS PolygonPoint (
-  id         SERIAL            PRIMARY KEY,
+  id          SERIAL  PRIMARY KEY,
   polygon_id  INT     NOT NULL,
   point_id    INT     NOT NULL,
-  sequence   INT     NOT NULL,
+  sequence    INT     NOT NULL,
 
   UNIQUE (polygon_id, sequence),
 
