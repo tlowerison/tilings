@@ -17,4 +17,4 @@ if [[ "$component" != "client" && "$component" != "server" ]]; then
   exit 1
 fi
 
-docker build . -t "tlowerison/tilings-$component:$version" -f "Dockerfile.$component"
+docker build . -t "tlowerison/tilings-$component:$version" -f "Dockerfile.$component" ${@:3}

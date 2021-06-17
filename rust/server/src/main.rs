@@ -52,10 +52,8 @@ fn set_env() -> String {
 #[launch]
 fn rocket() -> _ {
     let database_url = set_env();
-
-    embedded_migrations::run(
-        &PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
-    ).expect(&format!("Error running pending migrations"));
+    let conn = &PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url));
+    embedded_migrations::run(conn).expect(&format!("Error running pending migrations"));
 
     rocket::build().mount("/", routes![
         api::match_labels,
