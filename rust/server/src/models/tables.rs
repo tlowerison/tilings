@@ -16,8 +16,8 @@ use serde_json;
 pub trait Full: Sized {
     fn find(id: i32, conn: &PgConnection) -> Result<Self>;
     fn delete(id: i32, conn: &PgConnection) -> Result<usize>;
-    fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>>;
-    fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize>;
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>>;
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize>;
 }
 
 pub trait FullInsertable {
@@ -118,13 +118,13 @@ macro_rules! crud {
                         .map_err(Debug)
                 }
 
-                fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
+                fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
                     $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                         .load(conn)
                         .map_err(Debug)
                 }
 
-                fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+                fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
                     diesel::delete(
                         $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                     )

@@ -49,13 +49,13 @@ impl Full for FullTiling {
         Tiling::delete(id, conn)
     }
 
-    fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
-        let tilings = Tiling::batch_find(ids, conn)?;
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
+        let tilings = Tiling::find_batch(ids, conn)?;
 
         let all_tiling_labels = TilingLabel::belonging_to(&tilings)
             .load::<TilingLabel>(conn)?;
 
-        let all_labels = Label::batch_find(
+        let all_labels = Label::find_batch(
             all_tiling_labels.iter().map(|tl| tl.label_id).collect(),
             conn,
         )?
@@ -84,11 +84,11 @@ impl Full for FullTiling {
         )
     }
 
-    fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
         diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq_any(ids.clone())))
             .execute(conn)?;
 
-        Tiling::batch_delete(ids, conn)
+        Tiling::delete_batch(ids, conn)
     }
 }
 
@@ -109,7 +109,7 @@ impl FullInsertable for FullTilingPost {
                         .collect(),
                     conn,
                 )?;
-                Label::batch_find(label_ids, conn)?
+                Label::find_batch(label_ids, conn)?
             },
         };
 
@@ -129,7 +129,7 @@ impl FullChangeset for FullTilingPatch {
             let existing_tiling_label_ids = existing_tiling_labels.iter()
                 .map(|tiling_label| tiling_label.id)
                 .collect::<Vec<i32>>();
-            TilingLabel::batch_delete(existing_tiling_label_ids, conn)?;
+            TilingLabel::delete_batch(existing_tiling_label_ids, conn)?;
 
             TilingLabelPost::batch_insert(
                 label_ids

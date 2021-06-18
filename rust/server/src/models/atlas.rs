@@ -84,7 +84,7 @@ impl Full for FullAtlas {
 
         let all_atlas_edges = AtlasEdge::belonging_to(&atlas).load::<AtlasEdge>(conn)?;
 
-        let all_polygon_points = PolygonPoint::batch_find(
+        let all_polygon_points = PolygonPoint::find_batch(
             all_atlas_edges
                 .iter()
                 .map(|atlas_edge| atlas_edge.polygon_point_id)
@@ -92,7 +92,7 @@ impl Full for FullAtlas {
             conn,
         )?;
 
-        let full_polygons = FullPolygon::batch_find(
+        let full_polygons = FullPolygon::find_batch(
             all_polygon_points
                 .iter()
                 .map(|polygon_point| polygon_point.polygon_id)
@@ -169,11 +169,11 @@ impl Full for FullAtlas {
         todo!()
     }
 
-    fn batch_find(_ids: Vec<i32>, _conn: &PgConnection) -> Result<Vec<Self>> {
+    fn find_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<Vec<Self>> {
         todo!()
     }
 
-    fn batch_delete(_ids: Vec<i32>, _conn: &PgConnection) -> Result<usize> {
+    fn delete_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<usize> {
         todo!()
     }
 }

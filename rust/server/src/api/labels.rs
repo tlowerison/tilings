@@ -5,6 +5,13 @@ use crate::{
 };
 use rocket::serde::json::Json;
 
+#[delete("/label/<id>")]
+pub async fn delete_label(id: i32, db: DbConn) -> Result<Json<usize>> {
+    db.run(move |conn| conn.build_transaction().run(||
+        Label::delete(id, conn)
+    )).await.map(Json)
+}
+
 #[get("/match-labels?<query>")]
 pub async fn match_labels(query: String, db: DbConn) -> Result<Json<Vec<Label>>> {
     db.run(move |conn|
@@ -16,12 +23,5 @@ pub async fn match_labels(query: String, db: DbConn) -> Result<Json<Vec<Label>>>
 pub async fn upsert_label(label: String, db: DbConn) -> Result<Json<Label>> {
     db.run(move |conn| conn.build_transaction().run(||
         queries::upsert_label(label, conn)
-    )).await.map(Json)
-}
-
-#[delete("/label/<id>")]
-pub async fn delete_label(id: i32, db: DbConn) -> Result<Json<usize>> {
-    db.run(move |conn| conn.build_transaction().run(||
-        Label::delete(id, conn)
     )).await.map(Json)
 }

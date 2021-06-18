@@ -66,7 +66,7 @@ impl Full for FullPolygon {
             .order(polygonpoint::sequence.asc())
             .load::<PolygonPoint>(conn)?;
 
-        let points = Point::batch_find(
+        let points = Point::find_batch(
             polygon_points.iter().map(|polygon_point| polygon_point.point_id).collect(),
             conn,
         )?;
@@ -85,19 +85,19 @@ impl Full for FullPolygon {
         let polygon_points = diesel::delete(polygonpoint::table.filter(polygonpoint::polygon_id.eq(id)))
             .get_results::<PolygonPoint>(conn)?;
 
-        Point::batch_delete(polygon_points.into_iter().map(|polygon_point| polygon_point.id).collect(), conn)?;
+        Point::delete_batch(polygon_points.into_iter().map(|polygon_point| polygon_point.id).collect(), conn)?;
 
         Polygon::delete(id, conn)
     }
 
     // TODO: remove cloning for labels and points
-    fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
-        let polygons = Polygon::batch_find(ids, conn)?;
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
+        let polygons = Polygon::find_batch(ids, conn)?;
 
         let all_polygon_labels = PolygonLabel::belonging_to(&polygons)
             .load::<PolygonLabel>(conn)?;
 
-        let all_labels = Label::batch_find(
+        let all_labels = Label::find_batch(
             all_polygon_labels.iter().map(|polygon_label| polygon_label.label_id).collect(),
             conn,
         )?
@@ -123,7 +123,7 @@ impl Full for FullPolygon {
             .order(polygonpoint::sequence.asc())
             .load::<PolygonPoint>(conn)?;
 
-        let all_points = Point::batch_find(
+        let all_points = Point::find_batch(
             all_polygon_points.iter().map(|polygon_point| polygon_point.point_id).collect(),
             conn,
         )?
@@ -159,7 +159,7 @@ impl Full for FullPolygon {
         )
     }
 
-    fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
         diesel::delete(polygonlabel::table.filter(polygonlabel::polygon_id.eq_any(ids.clone())))
             .execute(conn)?;
 
@@ -170,13 +170,13 @@ impl Full for FullPolygon {
         )
             .get_results::<PolygonPoint>(conn)?;
 
-        Point::batch_delete(
+        Point::delete_batch(
             polygon_points.into_iter().map(|polygon_point| polygon_point.id)
                 .collect(),
             conn,
         )?;
 
-        Polygon::batch_delete(ids, conn)
+        Polygon::delete_batch(ids, conn)
     }
 }
 
@@ -197,7 +197,7 @@ impl FullInsertable for FullPolygonPost {
                         .collect(),
                     conn,
                 )?;
-                Label::batch_find(label_ids, conn)?
+                Label::find_batch(label_ids, conn)?
             },
         };
 
@@ -232,7 +232,7 @@ impl FullChangeset for FullPolygonPatch {
             let existing_polygon_label_ids = existing_polygon_labels.iter()
                 .map(|polygon_label| polygon_label.id)
                 .collect::<Vec<i32>>();
-            PolygonLabel::batch_delete(existing_polygon_label_ids, conn)?;
+            PolygonLabel::delete_batch(existing_polygon_label_ids, conn)?;
 
             PolygonLabelPost::batch_insert(
                 label_ids
@@ -261,12 +261,12 @@ impl FullChangeset for FullPolygonPatch {
                 let existing_polygon_point_ids = existing_polygon_points.iter()
                     .map(|polygon_point| polygon_point.id)
                     .collect::<Vec<i32>>();
-                PolygonPoint::batch_delete(existing_polygon_point_ids, conn)?;
+                PolygonPoint::delete_batch(existing_polygon_point_ids, conn)?;
 
                 let existing_point_ids = existing_polygon_points.iter()
                     .map(|polygon_point| polygon_point.point_id)
                     .collect::<Vec<i32>>();
-                Point::batch_delete(existing_point_ids, conn)?;
+                Point::delete_batch(existing_point_ids, conn)?;
 
                 let points = PointPost::batch_insert(points, conn)?;
 

@@ -12,6 +12,7 @@ pub mod schema;
 #[macro_use] extern crate mashup;
 #[macro_use] extern crate rocket;
 
+use api::*;
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 
@@ -57,15 +58,20 @@ fn rocket() -> _ {
     embedded_migrations::run(conn).expect(&format!("Error running pending migrations"));
 
     rocket::build().mount("/", routes![
-        api::create_polygon,
-        api::delete_label,
-        api::delete_polygon,
-        api::get_atlas,
-        api::get_polygon,
-        api::get_polygons,
-        api::match_labels,
-        api::text_search,
-        api::upsert_label,
-        api::update_polygon,
+        create_polygon,
+        delete_label,
+        delete_polygon,
+        get_atlas,
+        get_atlases,
+        get_polygon,
+        get_polygons,
+        get_tiling,
+        get_tilings,
+        get_tiling_type,
+        get_tiling_types,
+        match_labels,
+        text_search,
+        upsert_label,
+        update_polygon,
     ]).attach(connection::DbConn::fairing())
 }
