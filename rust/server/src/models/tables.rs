@@ -25,7 +25,7 @@ pub trait FullInsertable {
 
     fn insert(self, conn: &PgConnection) -> Result<Self::Base>;
 
-    fn batch_insert(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
         insertables.into_iter().map(|insertable| insertable.insert(conn)).collect()
     }
 }
@@ -35,7 +35,7 @@ pub trait FullChangeset {
 
     fn update(self, conn: &PgConnection) -> Result<Self::Base>;
 
-    fn batch_update(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
         changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
     }
 }
@@ -173,7 +173,7 @@ macro_rules! crud {
                             .map_err(Debug)
                     }
 
-                    fn batch_insert(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
+                    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(&insertables)
                             .get_results(conn)
@@ -215,7 +215,7 @@ macro_rules! crud {
                         }
                     }
 
-                    fn batch_update(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
+                    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
                         changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
                     }
                 }

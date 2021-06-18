@@ -101,7 +101,7 @@ impl FullInsertable for FullTilingPost {
         let labels = match self.label_ids {
             None => Vec::<Label>::with_capacity(0),
             Some(label_ids) => {
-                TilingLabelPost::batch_insert(
+                TilingLabelPost::insert_batch(
                     label_ids
                         .clone()
                         .into_iter()
@@ -131,7 +131,7 @@ impl FullChangeset for FullTilingPatch {
                 .collect::<Vec<i32>>();
             TilingLabel::delete_batch(existing_tiling_label_ids, conn)?;
 
-            TilingLabelPost::batch_insert(
+            TilingLabelPost::insert_batch(
                 label_ids
                     .into_iter()
                     .map(|label_id| TilingLabelPost { label_id, tiling_id: tiling.id })

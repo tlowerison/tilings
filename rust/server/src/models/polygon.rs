@@ -189,7 +189,7 @@ impl FullInsertable for FullPolygonPost {
         let labels = match self.label_ids {
             None => Vec::<Label>::with_capacity(0),
             Some(label_ids) => {
-                PolygonLabelPost::batch_insert(
+                PolygonLabelPost::insert_batch(
                     label_ids
                         .clone()
                         .into_iter()
@@ -201,9 +201,9 @@ impl FullInsertable for FullPolygonPost {
             },
         };
 
-        let points = PointPost::batch_insert(self.points, conn)?;
+        let points = PointPost::insert_batch(self.points, conn)?;
 
-        let polygon_points = PolygonPointPost::batch_insert(
+        let polygon_points = PolygonPointPost::insert_batch(
             points.iter().enumerate().map(|(i, point)| PolygonPointPost {
                 sequence: i as i32,
                 polygon_id: polygon.id,
@@ -234,7 +234,7 @@ impl FullChangeset for FullPolygonPatch {
                 .collect::<Vec<i32>>();
             PolygonLabel::delete_batch(existing_polygon_label_ids, conn)?;
 
-            PolygonLabelPost::batch_insert(
+            PolygonLabelPost::insert_batch(
                 label_ids
                     .into_iter()
                     .map(|label_id| PolygonLabelPost { label_id, polygon_id: polygon.id })
@@ -268,9 +268,9 @@ impl FullChangeset for FullPolygonPatch {
                     .collect::<Vec<i32>>();
                 Point::delete_batch(existing_point_ids, conn)?;
 
-                let points = PointPost::batch_insert(points, conn)?;
+                let points = PointPost::insert_batch(points, conn)?;
 
-                let polygon_points = PolygonPointPost::batch_insert(
+                let polygon_points = PolygonPointPost::insert_batch(
                     points.iter().enumerate().map(|(i, point)| PolygonPointPost {
                         sequence: i as i32,
                         polygon_id: polygon.id,
