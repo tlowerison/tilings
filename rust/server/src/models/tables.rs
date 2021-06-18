@@ -13,7 +13,14 @@ use rocket::response::Debug;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-pub trait NestedInsertable {
+pub trait Full: Sized {
+    fn find(id: i32, conn: &PgConnection) -> Result<Self>;
+    fn delete(id: i32, conn: &PgConnection) -> Result<usize>;
+    fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>>;
+    fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize>;
+}
+
+pub trait FullInsertable {
     type Base;
 
     fn insert(self, conn: &PgConnection) -> Result<Self::Base>;
@@ -23,7 +30,7 @@ pub trait NestedInsertable {
     }
 }
 
-pub trait NestedChangeset {
+pub trait FullChangeset {
     type Base;
 
     fn update(self, conn: &PgConnection) -> Result<Self::Base>;
@@ -96,13 +103,37 @@ macro_rules! crud {
 
             data! { $name }
 
-            impl $name {
-                pub fn find(id: i32, conn: &PgConnection) -> Result<$name> {
+            impl Full for $name {
+                fn find(id: i32, conn: &PgConnection) -> Result<$name> {
                     $crate::schema::$table::table.find(id)
                         .get_result(conn)
                         .map_err(Debug)
                 }
 
+                fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
+                    diesel::delete(
+                        $crate::schema::$table::table.filter($crate::schema::$table::id.eq(id))
+                    )
+                        .execute(conn)
+                        .map_err(Debug)
+                }
+
+                fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
+                    $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
+                        .load(conn)
+                        .map_err(Debug)
+                }
+
+                fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+                    diesel::delete(
+                        $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
+                    )
+                        .execute(conn)
+                        .map_err(Debug)
+                }
+            }
+
+            impl $name {
                 pub fn find_all(start_id: Option<i32>, end_id: Option<i32>, limit: u32, conn: &PgConnection) -> Result<Vec<$name>> {
                     let query = $crate::schema::$table::table
                         .limit(limit as i64)
@@ -121,28 +152,6 @@ macro_rules! crud {
                         .get_results(conn)
                         .map_err(Debug)
                 }
-
-                pub fn batch_find(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
-                    $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
-                        .load(conn)
-                        .map_err(Debug)
-                }
-
-                pub fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
-                    diesel::delete(
-                        $crate::schema::$table::table.filter($crate::schema::$table::id.eq(id))
-                    )
-                        .execute(conn)
-                        .map_err(Debug)
-                }
-
-                pub fn batch_delete(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
-                    diesel::delete(
-                        $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
-                    )
-                        .execute(conn)
-                        .map_err(Debug)
-                }
             }
 
             Post! {
@@ -154,7 +163,7 @@ macro_rules! crud {
 
                 data! { $name "Post" }
 
-                impl NestedInsertable for $name "Post" {
+                impl FullInsertable for $name "Post" {
                     type Base = $name;
 
                     fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
@@ -183,7 +192,7 @@ macro_rules! crud {
 
                 data! { $name "Patch" }
 
-                impl NestedChangeset for $name "Patch" {
+                impl FullChangeset for $name "Patch" {
                     type Base = $name;
 
                     fn update(self, conn: &PgConnection) -> Result<Self::Base> {
@@ -274,14 +283,10 @@ crud! {
         title: Option<String>,
     },
 
-    "atlasvertexprototile", atlasvertexprototile, AtlasVertex,
-    struct AtlasVertexProtoTile {
-        atlas_vertex_id: i32,
-        polygon_point_id: i32,
-    },
-
-    "atlasedge", atlasedge,,
+    "atlasedge", atlasedge, Atlas PolygonPoint,
     struct AtlasEdge {
+        atlas_id: i32,
+        polygon_point_id: i32,
         source_id: i32,
         sink_id: i32,
     }
