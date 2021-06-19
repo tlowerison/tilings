@@ -1,4 +1,4 @@
-use crate::{connection::Result, schema::*};
+use crate::{result::DbResult, schema::*};
 use diesel::{
     self,
     ExpressionMethods,
@@ -9,23 +9,22 @@ use diesel::{
     result::Error::QueryBuilderError,
     RunQueryDsl,
 };
-use rocket::response::Debug;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
 pub trait Full: Sized {
-    fn find(id: i32, conn: &PgConnection) -> Result<Self>;
-    fn delete(id: i32, conn: &PgConnection) -> Result<usize>;
-    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>>;
-    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize>;
+    fn find(id: i32, conn: &PgConnection) -> DbResult<Self>;
+    fn delete(id: i32, conn: &PgConnection) -> DbResult<usize>;
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<Vec<Self>>;
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<usize>;
 }
 
 pub trait FullInsertable {
     type Base;
 
-    fn insert(self, conn: &PgConnection) -> Result<Self::Base>;
+    fn insert(self, conn: &PgConnection) -> DbResult<Self::Base>;
 
-    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> where Self: Sized {
         insertables.into_iter().map(|insertable| insertable.insert(conn)).collect()
     }
 }
@@ -33,9 +32,9 @@ pub trait FullInsertable {
 pub trait FullChangeset {
     type Base;
 
-    fn update(self, conn: &PgConnection) -> Result<Self::Base>;
+    fn update(self, conn: &PgConnection) -> DbResult<Self::Base>;
 
-    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> where Self: Sized {
         changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
     }
 }
@@ -81,8 +80,12 @@ macro_rules! crud {
         $table_name:expr,
         $table:ident,
         $($belongs_to:ident)*,
+        $(#[$struct_meta:meta])*
         struct $name:ident {
-            $($field_name:ident: $field_type:ty,)*
+            $(
+                $(#[$field_meta:meta])*
+                $field_name:ident: $field_type:ty,
+            )*
         }
     ),*) => {
         mashup! {
@@ -94,47 +97,47 @@ macro_rules! crud {
 
         $(
             #[derive(Associations, Clone, Debug, Deserialize, Identifiable, Queryable, Serialize)]
-            $(#[belongs_to($belongs_to)])*
             #[table_name = $table_name]
+            $(#[belongs_to($belongs_to)])*
+            $(#[$struct_meta])*
             pub struct $name {
                 pub id: i32,
-                $(pub $field_name: $field_type,)*
+                $(
+                    $(#[$field_meta])*
+                    pub $field_name: $field_type,
+                )*
             }
 
             data! { $name }
 
             impl Full for $name {
-                fn find(id: i32, conn: &PgConnection) -> Result<$name> {
+                fn find(id: i32, conn: &PgConnection) -> DbResult<$name> {
                     $crate::schema::$table::table.find(id)
                         .get_result(conn)
-                        .map_err(Debug)
                 }
 
-                fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
+                fn delete(id: i32, conn: &PgConnection) -> DbResult<usize> {
                     diesel::delete(
                         $crate::schema::$table::table.filter($crate::schema::$table::id.eq(id))
                     )
                         .execute(conn)
-                        .map_err(Debug)
                 }
 
-                fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
+                fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<Vec<$name>> {
                     $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                         .load(conn)
-                        .map_err(Debug)
                 }
 
-                fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+                fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<usize> {
                     diesel::delete(
                         $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                     )
                         .execute(conn)
-                        .map_err(Debug)
                 }
             }
 
             impl $name {
-                pub fn find_all(start_id: Option<i32>, end_id: Option<i32>, limit: u32, conn: &PgConnection) -> Result<Vec<$name>> {
+                pub fn find_all(start_id: Option<i32>, end_id: Option<i32>, limit: u32, conn: &PgConnection) -> DbResult<Vec<$name>> {
                     let query = $crate::schema::$table::table
                         .limit(limit as i64)
                         .filter($crate::schema::$table::id.ge(
@@ -144,21 +147,22 @@ macro_rules! crud {
                     if let Some(end_id) = end_id {
                         return query
                             .filter($crate::schema::$table::id.lt(end_id))
-                            .get_results(conn)
-                            .map_err(Debug);
+                            .get_results(conn);
                     }
 
-                    query
-                        .get_results(conn)
-                        .map_err(Debug)
+                    query.get_results(conn)
                 }
             }
 
             Post! {
                 #[derive(Clone, Debug, Deserialize, Insertable, Serialize)]
                 #[table_name = $table_name]
+                $(#[$struct_meta])*
                 pub struct $name "Post" {
-                    $(pub $field_name: $field_type,)*
+                    $(
+                        $(#[$field_meta])*
+                        pub $field_name: $field_type,
+                    )*
                 }
 
                 data! { $name "Post" }
@@ -166,18 +170,16 @@ macro_rules! crud {
                 impl FullInsertable for $name "Post" {
                     type Base = $name;
 
-                    fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
+                    fn insert(self, conn: &PgConnection) -> DbResult<Self::Base> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(self)
                             .get_result(conn)
-                            .map_err(Debug)
                     }
 
-                    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
+                    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(&insertables)
                             .get_results(conn)
-                            .map_err(Debug)
                     }
                 }
             }
@@ -185,9 +187,13 @@ macro_rules! crud {
             Patch! {
                 #[derive(AsChangeset, Clone, Debug, Deserialize, Identifiable, Queryable, Serialize)]
                 #[table_name = $table_name]
+                $(#[$struct_meta])*
                 pub struct $name "Patch" {
                     pub id: i32,
-                    $(pub $field_name: Option<$field_type>,)*
+                    $(
+                        $(#[$field_meta])*
+                        pub $field_name: Option<$field_type>,
+                    )*
                 }
 
                 data! { $name "Patch" }
@@ -195,7 +201,7 @@ macro_rules! crud {
                 impl FullChangeset for $name "Patch" {
                     type Base = $name;
 
-                    fn update(self, conn: &PgConnection) -> Result<Self::Base> {
+                    fn update(self, conn: &PgConnection) -> DbResult<Self::Base> {
                         let id = self.id.clone();
                         let result = diesel::update($crate::schema::$table::table.find(id))
                             .set(self)
@@ -206,16 +212,16 @@ macro_rules! crud {
                                 Some(result) => Ok(result),
                                 None => Self::Base::find(id, conn),
                             },
-                            Err(e) => {
-                                if let QueryBuilderError(_) = e {
+                            Err(err) => {
+                                if let QueryBuilderError(_) = err {
                                     return Self::Base::find(id, conn)
                                 }
-                                return Err(Debug(e))
+                                return Err(err)
                             }
                         }
                     }
 
-                    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
+                    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> {
                         changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
                     }
                 }
@@ -225,14 +231,75 @@ macro_rules! crud {
 }
 
 crud! {
-    "tilingtype", tilingtype,,
-    struct TilingType {
-        title: String,
+    "account", account,,
+    struct Account {
+        #[serde(skip_serializing)]
+        email: String,
+        #[serde(skip_serializing)]
+        password: String,
+        display_name: String,
+        #[serde(skip_deserializing)]
+        verified: bool,
+    },
+
+    "accountrole", accountrole, Account Role,
+    struct AccountRole {
+        account_id: i32,
+        role_id: i32,
+    },
+
+    "atlas", atlas, Tiling TilingType,
+    struct Atlas {
+        tiling_id: i32,
+        tiling_type_id: i32,
+    },
+
+    "atlasedge", atlasedge, Atlas PolygonPoint,
+    struct AtlasEdge {
+        atlas_id: i32,
+        polygon_point_id: i32,
+        source_id: i32,
+        sink_id: i32,
+    },
+
+    "atlasvertex", atlasvertex, Atlas,
+    struct AtlasVertex {
+        atlas_id: i32,
+        title: Option<String>,
     },
 
     "label", label,,
     struct Label {
         content: String,
+    },
+
+    "point", point,,
+    struct Point {
+        x: f64,
+        y: f64,
+    },
+
+    "polygon", polygon,,
+    struct Polygon {
+        title: String,
+    },
+
+    "polygonlabel", polygonlabel, Polygon Label,
+    struct PolygonLabel {
+        polygon_id: i32,
+        label_id: i32,
+    },
+
+    "polygonpoint", polygonpoint, Polygon Point,
+    struct PolygonPoint {
+        polygon_id: i32,
+        point_id: i32,
+        sequence: i32,
+    },
+
+    "role", role,,
+    struct Role {
+        title: String,
     },
 
     "tiling", tiling, TilingType,
@@ -247,47 +314,8 @@ crud! {
         label_id: i32,
     },
 
-    "polygon", polygon,,
-    struct Polygon {
+    "tilingtype", tilingtype,,
+    struct TilingType {
         title: String,
-    },
-
-    "polygonlabel", polygonlabel, Polygon Label,
-    struct PolygonLabel {
-        polygon_id: i32,
-        label_id: i32,
-    },
-
-    "point", point,,
-    struct Point {
-        x: f64,
-        y: f64,
-    },
-
-    "polygonpoint", polygonpoint, Polygon Point,
-    struct PolygonPoint {
-        polygon_id: i32,
-        point_id: i32,
-        sequence: i32,
-    },
-
-    "atlas", atlas, Tiling TilingType,
-    struct Atlas {
-        tiling_id: i32,
-        tiling_type_id: i32,
-    },
-
-    "atlasvertex", atlasvertex, Atlas,
-    struct AtlasVertex {
-        atlas_id: i32,
-        title: Option<String>,
-    },
-
-    "atlasedge", atlasedge, Atlas PolygonPoint,
-    struct AtlasEdge {
-        atlas_id: i32,
-        polygon_point_id: i32,
-        source_id: i32,
-        sink_id: i32,
     }
 }

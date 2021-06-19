@@ -13,9 +13,12 @@ diesel_migrations = "1.4.0"
 http-types = "2.11.1"
 itertools = "0.10.1"
 mashup = "0.1"
+rand = "0.8.4"
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
+rust-argon2 = "0.8.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
+validator = { version = "0.13.0" }
 
 [dependencies.rocket_sync_db_pools]
 version = "0.1.0-rc.1"

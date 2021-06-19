@@ -1,4 +1,22 @@
 table! {
+    account (id) {
+        id -> Int4,
+        email -> Varchar,
+        password -> Varchar,
+        display_name -> Varchar,
+        verified -> Bool,
+    }
+}
+
+table! {
+    accountrole (id) {
+        id -> Int4,
+        account_id -> Int4,
+        role_id -> Int4,
+    }
+}
+
+table! {
     atlas (id) {
         id -> Int4,
         tiling_id -> Int4,
@@ -64,6 +82,13 @@ table! {
 }
 
 table! {
+    role (id) {
+        id -> Int4,
+        title -> Varchar,
+    }
+}
+
+table! {
     tiling (id) {
         id -> Int4,
         title -> Varchar,
@@ -86,6 +111,8 @@ table! {
     }
 }
 
+joinable!(accountrole -> account (account_id));
+joinable!(accountrole -> role (role_id));
 joinable!(atlas -> tiling (tiling_id));
 joinable!(atlasedge -> atlas (atlas_id));
 joinable!(atlasedge -> polygonpoint (polygon_point_id));
@@ -99,6 +126,8 @@ joinable!(tilinglabel -> label (label_id));
 joinable!(tilinglabel -> tiling (tiling_id));
 
 allow_tables_to_appear_in_same_query!(
+    account,
+    accountrole,
     atlas,
     atlasedge,
     atlasvertex,
@@ -107,6 +136,7 @@ allow_tables_to_appear_in_same_query!(
     polygon,
     polygonlabel,
     polygonpoint,
+    role,
     tiling,
     tilinglabel,
     tilingtype,

@@ -1,11 +1,10 @@
 use crate::{
-    connection::Result,
     data,
     models::tables::*,
+    result::DbResult,
 };
 use diesel::{self, prelude::*};
 use itertools::Itertools;
-use rocket::response::Debug;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -20,10 +19,10 @@ pub trait TextSearchable {
     type GroupItem;
 
     fn process_groups(vec: Vec<Self::GroupItem>) -> Vec<TextSearchItem>;
-    fn search_title(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>>;
-    fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>>;
+    fn search_title(query: String, conn: &PgConnection) -> DbResult<Vec<TextSearchItem>>;
+    fn search_labels(query: String, conn: &PgConnection) -> DbResult<Vec<TextSearchItem>>;
 
-    fn text_search(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>> {
+    fn text_search(query: String, conn: &PgConnection) -> DbResult<Vec<TextSearchItem>> {
         let title_matches = Self::search_title(query.clone(), conn)?;
         let label_matches = Self::search_labels(query, conn)?;
         Ok(title_matches.into_iter().chain(label_matches.into_iter()).collect())
@@ -46,26 +45,23 @@ macro_rules! text_searchable {
                 impl TextSearchable for $name {
                     type GroupItem = ($name, ($name "Label", Label));
 
-                    fn search_title(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>> {
+                    fn search_title(query: String, conn: &PgConnection) -> DbResult<Vec<TextSearchItem>> {
                         Ok($name::process_groups(
                             $crate::schema::$table::table.filter($crate::schema::$table::title.like(format!("%{}%", query)))
                                 .inner_join($crate::schema::$table "label"::table.inner_join($crate::schema::label::table))
-                                .load::<Self::GroupItem>(conn)
-                                .map_err(Debug)?
+                                .load::<Self::GroupItem>(conn)?
                         ))
                     }
 
-                    fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>> {
+                    fn search_labels(query: String, conn: &PgConnection) -> DbResult<Vec<TextSearchItem>> {
                         let base_ids = $crate::schema::label::table.filter($crate::schema::label::content.like(format!("%{}%", query)))
                             .inner_join($crate::schema::$table "label"::table.inner_join($crate::schema::$table::table))
                             .select($crate::schema::$table::id)
-                            .load::<i32>(conn)
-                            .map_err(Debug)?;
+                            .load::<i32>(conn)?;
                         Ok($name::process_groups(
                             $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(base_ids))
                                 .inner_join($crate::schema::$table "label"::table.inner_join($crate::schema::label::table))
-                                .load::<Self::GroupItem>(conn)
-                                .map_err(Debug)?
+                                .load::<Self::GroupItem>(conn)?
                         ))
                     }
 

@@ -4,8 +4,11 @@ pub mod api;
 pub mod connection;
 pub mod models;
 pub mod queries;
+pub mod response;
+pub mod result;
 pub mod schema;
 
+extern crate argon2;
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate diesel_migrations;
 #[macro_use] extern crate itertools;
@@ -58,6 +61,8 @@ fn rocket() -> _ {
     embedded_migrations::run(conn).expect(&format!("Error running pending migrations"));
 
     rocket::build().mount("/", routes![
+        check_email,
+        check_display_name,
         create_polygon,
         delete_label,
         delete_polygon,
@@ -70,6 +75,9 @@ fn rocket() -> _ {
         get_tiling_type,
         get_tiling_types,
         match_labels,
+        sign_in,
+        sign_out,
+        sign_up,
         text_search,
         upsert_label,
         update_polygon,

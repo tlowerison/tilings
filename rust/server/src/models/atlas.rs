@@ -1,11 +1,10 @@
 use crate::{
-    connection::Result,
     data,
     models::{polygon::*, tables::*, tiling::*},
+    result::DbResult,
 };
 use diesel::{self, prelude::*};
 use itertools::Itertools;
-use rocket::response::Debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -69,7 +68,7 @@ data! {
 }
 
 impl Full for FullAtlas {
-    fn find(id: i32, conn: &PgConnection) -> Result<Self> {
+    fn find(id: i32, conn: &PgConnection) -> DbResult<Self> {
         let atlas = Atlas::find(id, conn)?;
 
         let full_tiling = FullTiling::find(atlas.tiling_id, conn)?;
@@ -122,7 +121,7 @@ impl Full for FullAtlas {
             .map(|atlas_edge| {
                 let (polygon_index, point_index) = polygon_and_point_indices_by_polygon_point_id
                     .get(&atlas_edge.polygon_point_id)
-                    .ok_or(Debug(diesel::result::Error::NotFound))?;
+                    .ok_or(diesel::result::Error::NotFound)?;
                 Ok((
                     atlas_edge.source_id,
                     FullAtlasEdge {
@@ -131,12 +130,12 @@ impl Full for FullAtlas {
                         point_index: point_index.clone(),
                         neighbor_index: atlas_index_by_atlas_id
                             .get(&atlas_edge.sink_id)
-                            .ok_or(Debug(diesel::result::Error::NotFound))?
+                            .ok_or(diesel::result::Error::NotFound)?
                             .clone(),
                     },
                 ))
             })
-            .collect::<Result<Vec<(i32, FullAtlasEdge)>>>()?
+            .collect::<DbResult<Vec<(i32, FullAtlasEdge)>>>()?
             .into_iter()
             .group_by(|(atlas_vertex_id, _)| *atlas_vertex_id)
             .into_iter()
@@ -165,15 +164,15 @@ impl Full for FullAtlas {
         })
     }
 
-    fn delete(_id: i32, _conn: &PgConnection) -> Result<usize> {
+    fn delete(_id: i32, _conn: &PgConnection) -> DbResult<usize> {
         todo!()
     }
 
-    fn find_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<Vec<Self>> {
+    fn find_batch(_ids: Vec<i32>, _conn: &PgConnection) -> DbResult<Vec<Self>> {
         todo!()
     }
 
-    fn delete_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<usize> {
+    fn delete_batch(_ids: Vec<i32>, _conn: &PgConnection) -> DbResult<usize> {
         todo!()
     }
 }

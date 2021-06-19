@@ -1,5 +1,4 @@
 use diesel::{self, pg::PgConnection, r2d2::{self, ConnectionManager}};
-use rocket::response::Debug;
 use rocket_sync_db_pools::database;
 use std::env;
 use std::ops::Deref;
@@ -25,5 +24,3 @@ impl Deref for DbConn {
         &self.0
     }
 }
-
-pub type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;

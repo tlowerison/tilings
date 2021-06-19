@@ -1,22 +1,19 @@
 use crate::{
-    connection::Result,
     models::*,
+    result::DbResult,
     schema::label,
 };
 use diesel::prelude::*;
-use rocket::response::Debug;
 
-pub fn match_labels(query: String, conn: &PgConnection) -> Result<Vec<Label>> {
+pub fn match_labels(query: String, conn: &PgConnection) -> DbResult<Vec<Label>> {
     label::table.filter(label::content.like(format!("%{}%", query)))
         .load::<Label>(conn)
-        .map_err(Debug)
 }
 
-pub fn upsert_label(content: String, conn: &PgConnection) -> Result<Label> {
+pub fn upsert_label(content: String, conn: &PgConnection) -> DbResult<Label> {
     let existing_label = label::table.filter(label::content.eq(&content))
         .get_result(conn)
-        .optional()
-        .map_err(Debug)?;
+        .optional()?;
     if let Some(existing_label) = existing_label {
         return Ok(existing_label)
     }

@@ -1,27 +1,33 @@
 use crate::{
-    connection::{DbConn, Result},
+    connection::DbConn,
     models::*,
     queries,
+    response::Response,
 };
-use rocket::serde::json::Json;
 
 #[delete("/label/<id>")]
-pub async fn delete_label(id: i32, db: DbConn) -> Result<Json<usize>> {
-    db.run(move |conn| conn.build_transaction().run(||
-        Label::delete(id, conn)
-    )).await.map(Json)
+pub async fn delete_label(id: i32, db: DbConn) -> Response<usize> {
+    Response::from(
+        db.run(move |conn| conn.build_transaction().run(||
+            Label::delete(id, conn)
+        )).await
+    )
 }
 
 #[get("/match-labels?<query>")]
-pub async fn match_labels(query: String, db: DbConn) -> Result<Json<Vec<Label>>> {
-    db.run(move |conn|
-        queries::match_labels(query, conn)
-    ).await.map(Json)
+pub async fn match_labels(query: String, db: DbConn) -> Response<Vec<Label>> {
+    Response::from(
+        db.run(move |conn|
+            queries::match_labels(query, conn)
+        ).await
+    )
 }
 
 #[post("/upsert-label", data = "<label>")]
-pub async fn upsert_label(label: String, db: DbConn) -> Result<Json<Label>> {
-    db.run(move |conn| conn.build_transaction().run(||
-        queries::upsert_label(label, conn)
-    )).await.map(Json)
+pub async fn upsert_label(label: String, db: DbConn) -> Response<Label> {
+    Response::from(
+        db.run(move |conn| conn.build_transaction().run(||
+            queries::upsert_label(label, conn)
+        )).await
+    )
 }
