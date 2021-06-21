@@ -1,7 +1,7 @@
 use crate::{
-    data,
+    from_data,
     models::{polygon::*, tables::*, tiling::*},
-    result::DbResult,
+    result::Result,
 };
 use diesel::{self, prelude::*};
 use itertools::Itertools;
@@ -57,7 +57,7 @@ pub struct FullAtlasPatch {
     pub vertices: Option<Vec<FullPolygonPost>>,
 }
 
-data! {
+from_data! {
     FullAtlasVertex,
     FullAtlasVertexPost,
     FullAtlasEdge,
@@ -68,7 +68,7 @@ data! {
 }
 
 impl Full for FullAtlas {
-    fn find(id: i32, conn: &PgConnection) -> DbResult<Self> {
+    fn find(id: i32, conn: &PgConnection) -> Result<Self> {
         let atlas = Atlas::find(id, conn)?;
 
         let full_tiling = FullTiling::find(atlas.tiling_id, conn)?;
@@ -135,7 +135,7 @@ impl Full for FullAtlas {
                     },
                 ))
             })
-            .collect::<DbResult<Vec<(i32, FullAtlasEdge)>>>()?
+            .collect::<Result<Vec<(i32, FullAtlasEdge)>>>()?
             .into_iter()
             .group_by(|(atlas_vertex_id, _)| *atlas_vertex_id)
             .into_iter()
@@ -164,15 +164,15 @@ impl Full for FullAtlas {
         })
     }
 
-    fn delete(_id: i32, _conn: &PgConnection) -> DbResult<usize> {
+    fn delete(_id: i32, _conn: &PgConnection) -> Result<usize> {
         todo!()
     }
 
-    fn find_batch(_ids: Vec<i32>, _conn: &PgConnection) -> DbResult<Vec<Self>> {
+    fn find_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<Vec<Self>> {
         todo!()
     }
 
-    fn delete_batch(_ids: Vec<i32>, _conn: &PgConnection) -> DbResult<usize> {
+    fn delete_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<usize> {
         todo!()
     }
 }

@@ -1,16 +1,17 @@
 use crate::{
     models::*,
-    result::DbResult,
+    result::{Error, Result},
     schema::label,
 };
 use diesel::prelude::*;
 
-pub fn match_labels(query: String, conn: &PgConnection) -> DbResult<Vec<Label>> {
+pub fn match_labels(query: String, conn: &PgConnection) -> Result<Vec<Label>> {
     label::table.filter(label::content.like(format!("%{}%", query)))
         .load::<Label>(conn)
+        .map_err(Error::from)
 }
 
-pub fn upsert_label(content: String, conn: &PgConnection) -> DbResult<Label> {
+pub fn upsert_label(content: String, conn: &PgConnection) -> Result<Label> {
     let existing_label = label::table.filter(label::content.eq(&content))
         .get_result(conn)
         .optional()?;

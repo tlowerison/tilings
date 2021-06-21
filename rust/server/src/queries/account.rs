@@ -4,13 +4,7 @@ use crate::{
     schema::account,
 };
 use argon2::{self, Config};
-use diesel::{
-    ExpressionMethods,
-    OptionalExtension,
-    PgConnection,
-    QueryDsl,
-    RunQueryDsl,
-};
+use diesel::{PgConnection, prelude::*};
 use rand::Rng;
 use rocket::http::Status;
 use validator::validate_email;
@@ -48,7 +42,7 @@ pub fn check_display_name(display_name: String, conn: &PgConnection) -> Result<b
     Ok(match count { Some(count) => count == 0, None => false })
 }
 
-pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<bool> {
+pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<i32> {
     if account_post.email.len() > MAX_EMAIL_LENGTH {
         return Err(Error::Custom(
             Status::BadRequest,
@@ -88,7 +82,7 @@ pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<bool> {
     let config = Config::default();
     let password_hash = argon2::hash_encoded(account_post.password.as_bytes(), &salt, &config).unwrap();
 
-    AccountPost {
+    let account = AccountPost {
         email: account_post.email,
         password: password_hash,
         display_name: account_post.display_name,
@@ -99,10 +93,10 @@ pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<bool> {
             String::from(EMAIL_DISPLAY_NAME_TAKEN_ERR_MSG),
         )))?;
 
-    Ok(true)
+    Ok(account.id)
 }
 
-pub fn sign_in(email: String, password: String, conn: &PgConnection) -> Result<bool> {
+pub fn sign_in(email: String, password: String, conn: &PgConnection) -> Result<i32> {
     let account: Account = account::table.filter(account::email.eq(email))
         .get_result(conn)
         .or(Err(Error::Custom(Status::BadRequest, String::from(INVALID_EMAIL_ERR_MSG))))?;
@@ -111,7 +105,7 @@ pub fn sign_in(email: String, password: String, conn: &PgConnection) -> Result<b
         .or(Err(Error::Custom(Status::BadRequest, String::from(INVALID_PASSWORD_ERR_MSG))))?;
 
     if is_password_correct {
-        return Ok(true)
+        return Ok(account.id)
     } else {
         return Err(Error::Custom(
             Status::BadRequest,
@@ -120,6 +114,6 @@ pub fn sign_in(email: String, password: String, conn: &PgConnection) -> Result<b
     }
 }
 
-pub fn sign_out(_conn: &PgConnection) -> Result<bool> {
-    Ok(true)
+pub fn sign_out(_conn: &PgConnection) -> Result<()> {
+    Ok(())
 }

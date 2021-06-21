@@ -1,46 +1,46 @@
-use crate::{result::DbResult, schema::*};
+use crate::{
+    result::{Error, Result},
+    schema::*,
+};
 use diesel::{
     self,
-    ExpressionMethods,
-    Insertable,
-    OptionalExtension,
     PgConnection,
-    QueryDsl,
+    prelude::*,
     result::Error::QueryBuilderError,
-    RunQueryDsl,
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
 
 pub trait Full: Sized {
-    fn find(id: i32, conn: &PgConnection) -> DbResult<Self>;
-    fn delete(id: i32, conn: &PgConnection) -> DbResult<usize>;
-    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<Vec<Self>>;
-    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<usize>;
+    fn find(id: i32, conn: &PgConnection) -> Result<Self>;
+    fn delete(id: i32, conn: &PgConnection) -> Result<usize>;
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>>;
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize>;
 }
 
 pub trait FullInsertable {
     type Base;
 
-    fn insert(self, conn: &PgConnection) -> DbResult<Self::Base>;
+    fn insert(self, conn: &PgConnection) -> Result<Self::Base>;
 
-    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> where Self: Sized {
-        insertables.into_iter().map(|insertable| insertable.insert(conn)).collect()
+    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
+        insertables.into_iter().map(|insertable| insertable.insert(conn))
+            .collect::<Result<Vec<Self::Base>>>()
     }
 }
 
 pub trait FullChangeset {
     type Base;
 
-    fn update(self, conn: &PgConnection) -> DbResult<Self::Base>;
+    fn update(self, conn: &PgConnection) -> Result<Self::Base>;
 
-    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> where Self: Sized {
+    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> where Self: Sized {
         changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
     }
 }
 
 #[macro_export]
-macro_rules! data {
+macro_rules! from_data {
     ($($name:ident),*) => {
         $(
             #[rocket::async_trait]
@@ -108,36 +108,40 @@ macro_rules! crud {
                 )*
             }
 
-            data! { $name }
+            from_data! { $name }
 
             impl Full for $name {
-                fn find(id: i32, conn: &PgConnection) -> DbResult<$name> {
+                fn find(id: i32, conn: &PgConnection) -> Result<$name> {
                     $crate::schema::$table::table.find(id)
                         .get_result(conn)
+                        .map_err(Error::from)
                 }
 
-                fn delete(id: i32, conn: &PgConnection) -> DbResult<usize> {
+                fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
                     diesel::delete(
                         $crate::schema::$table::table.filter($crate::schema::$table::id.eq(id))
                     )
                         .execute(conn)
+                        .map_err(Error::from)
                 }
 
-                fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<Vec<$name>> {
+                fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<$name>> {
                     $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                         .load(conn)
+                        .map_err(Error::from)
                 }
 
-                fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<usize> {
+                fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
                     diesel::delete(
                         $crate::schema::$table::table.filter($crate::schema::$table::id.eq_any(ids))
                     )
                         .execute(conn)
+                        .map_err(Error::from)
                 }
             }
 
             impl $name {
-                pub fn find_all(start_id: Option<i32>, end_id: Option<i32>, limit: u32, conn: &PgConnection) -> DbResult<Vec<$name>> {
+                pub fn find_all(start_id: Option<i32>, end_id: Option<i32>, limit: u32, conn: &PgConnection) -> Result<Vec<$name>> {
                     let query = $crate::schema::$table::table
                         .limit(limit as i64)
                         .filter($crate::schema::$table::id.ge(
@@ -147,10 +151,12 @@ macro_rules! crud {
                     if let Some(end_id) = end_id {
                         return query
                             .filter($crate::schema::$table::id.lt(end_id))
-                            .get_results(conn);
+                            .get_results(conn)
+                            .map_err(Error::from);
                     }
 
                     query.get_results(conn)
+                        .map_err(Error::from)
                 }
             }
 
@@ -165,21 +171,23 @@ macro_rules! crud {
                     )*
                 }
 
-                data! { $name "Post" }
+                from_data! { $name "Post" }
 
                 impl FullInsertable for $name "Post" {
                     type Base = $name;
 
-                    fn insert(self, conn: &PgConnection) -> DbResult<Self::Base> {
+                    fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(self)
                             .get_result(conn)
+                            .map_err(Error::from)
                     }
 
-                    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> {
+                    fn insert_batch(insertables: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
                         diesel::insert_into($crate::schema::$table::table)
                             .values(&insertables)
                             .get_results(conn)
+                            .map_err(Error::from)
                     }
                 }
             }
@@ -196,12 +204,12 @@ macro_rules! crud {
                     )*
                 }
 
-                data! { $name "Patch" }
+                from_data! { $name "Patch" }
 
                 impl FullChangeset for $name "Patch" {
                     type Base = $name;
 
-                    fn update(self, conn: &PgConnection) -> DbResult<Self::Base> {
+                    fn update(self, conn: &PgConnection) -> Result<Self::Base> {
                         let id = self.id.clone();
                         let result = diesel::update($crate::schema::$table::table.find(id))
                             .set(self)
@@ -216,13 +224,14 @@ macro_rules! crud {
                                 if let QueryBuilderError(_) = err {
                                     return Self::Base::find(id, conn)
                                 }
-                                return Err(err)
+                                return Err(Error::from(err))
                             }
                         }
                     }
 
-                    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> DbResult<Vec<Self::Base>> {
-                        changesets.into_iter().map(|changeset| changeset.update(conn)).collect()
+                    fn update_batch(changesets: Vec<Self>, conn: &PgConnection) -> Result<Vec<Self::Base>> {
+                        changesets.into_iter().map(|changeset| changeset.update(conn))
+                            .collect::<Result<Vec<Self::Base>>>()
                     }
                 }
             }

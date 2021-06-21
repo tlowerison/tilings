@@ -1,10 +1,10 @@
 use crate::{
-    data,
+    from_data,
     models::tables::*,
-    result::DbResult,
+    result::{Error, Result},
     schema::*,
 };
-use diesel::{self, prelude::*};
+use diesel::{self, prelude::*, result::Error as DieselError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -26,14 +26,14 @@ pub struct FullTilingPatch {
     pub label_ids: Option<Vec<i32>>,
 }
 
-data! {
+from_data! {
     FullTiling,
     FullTilingPost,
     FullTilingPatch
 }
 
 impl Full for FullTiling {
-    fn find(id: i32, conn: &PgConnection) -> DbResult<Self> {
+    fn find(id: i32, conn: &PgConnection) -> Result<Self> {
         let tiling = Tiling::find(id, conn)?;
 
         let labels = TilingLabel::belonging_to(&tiling)
@@ -44,11 +44,11 @@ impl Full for FullTiling {
         Ok(FullTiling { tiling, labels })
     }
 
-    fn delete(id: i32, conn: &PgConnection) -> DbResult<usize> {
+    fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
         Tiling::delete(id, conn)
     }
 
-    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<Vec<Self>> {
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
         let tilings = Tiling::find_batch(ids, conn)?;
 
         let all_tiling_labels = TilingLabel::belonging_to(&tilings)
@@ -72,9 +72,10 @@ impl Full for FullTiling {
                     .map(|label| label.clone())
                     .ok_or(diesel::result::Error::NotFound)
                 )
-                .collect::<DbResult<Vec<Label>>>()
+                .collect::<std::result::Result<Vec<Label>, DieselError>>()
+                .map_err(Error::from)
             )
-            .collect::<DbResult<Vec<Vec<Label>>>>()?;
+            .collect::<Result<Vec<Vec<Label>>>>()?;
 
         Ok(
             izip!(tilings.into_iter(), labels.into_iter())
@@ -83,7 +84,7 @@ impl Full for FullTiling {
         )
     }
 
-    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<usize> {
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
         diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq_any(ids.clone())))
             .execute(conn)?;
 
@@ -94,7 +95,7 @@ impl Full for FullTiling {
 impl FullInsertable for FullTilingPost {
     type Base = FullTiling;
 
-    fn insert(self, conn: &PgConnection) -> DbResult<Self::Base> {
+    fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
         let tiling = self.tiling.insert(conn)?;
 
         let labels = match self.label_ids {
@@ -119,7 +120,7 @@ impl FullInsertable for FullTilingPost {
 impl FullChangeset for FullTilingPatch {
     type Base = FullTiling;
 
-    fn update(self, conn: &PgConnection) -> DbResult<Self::Base> {
+    fn update(self, conn: &PgConnection) -> Result<Self::Base> {
         let tiling = self.tiling.clone().update(conn)?;
 
         if let Some(label_ids) = self.label_ids {

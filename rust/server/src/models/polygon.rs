@@ -1,10 +1,10 @@
 use crate::{
-    data,
+    from_data,
     models::tables::*,
-    result::DbResult,
+    result::{Error, Result},
     schema::*,
 };
-use diesel::{self, prelude::*};
+use diesel::{self, prelude::*, result::Error as DieselError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -35,15 +35,15 @@ pub struct FullPolygonPatch {
     pub points: Option<Vec<PointPost>>, // if present, replace
 }
 
-data! {
+from_data! {
     FullPolygon,
     FullPolygonPost,
     FullPolygonPatch
 }
 
-fn to_full_polygon_points(polygon_points: Vec<PolygonPoint>, points: Vec<Point>) -> DbResult<Vec<FullPolygonPoint>> {
+fn to_full_polygon_points(polygon_points: Vec<PolygonPoint>, points: Vec<Point>) -> Result<Vec<FullPolygonPoint>> {
     if polygon_points.len() != points.len() {
-        return Err(diesel::result::Error::NotFound);
+        return Err(Error::from(DieselError::NotFound));
     }
     Ok(
         izip!(polygon_points.into_iter(), points.into_iter())
@@ -53,7 +53,7 @@ fn to_full_polygon_points(polygon_points: Vec<PolygonPoint>, points: Vec<Point>)
 }
 
 impl Full for FullPolygon {
-    fn find(id: i32, conn: &PgConnection) -> DbResult<Self> {
+    fn find(id: i32, conn: &PgConnection) -> Result<Self> {
         let polygon = Polygon::find(id, conn)?;
 
         let labels = PolygonLabel::belonging_to(&polygon)
@@ -77,7 +77,7 @@ impl Full for FullPolygon {
         })
     }
 
-    fn delete(id: i32, conn: &PgConnection) -> DbResult<usize> {
+    fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
         diesel::delete(polygonlabel::table.filter(polygonlabel::polygon_id.eq(id)))
             .execute(conn)?;
 
@@ -90,7 +90,7 @@ impl Full for FullPolygon {
     }
 
     // TODO: remove cloning for labels and points
-    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<Vec<Self>> {
+    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
         let polygons = Polygon::find_batch(ids, conn)?;
 
         let all_polygon_labels = PolygonLabel::belonging_to(&polygons)
@@ -112,11 +112,12 @@ impl Full for FullPolygon {
                 .map(|polygon_label| all_labels
                     .get(&polygon_label.label_id)
                     .map(|label| label.clone())
-                    .ok_or(diesel::result::Error::NotFound)
+                    .ok_or(DieselError::NotFound)
                 )
-                .collect::<DbResult<Vec<Label>>>()
+                .collect::<std::result::Result<Vec<Label>, DieselError>>()
+                .map_err(Error::from)
             )
-            .collect::<DbResult<Vec<Vec<Label>>>>()?;
+            .collect::<Result<Vec<Vec<Label>>>>()?;
 
         let all_polygon_points = PolygonPoint::belonging_to(&polygons)
             .order(polygonpoint::sequence.asc())
@@ -141,11 +142,12 @@ impl Full for FullPolygon {
                         polygon_point: polygon_point,
                         point: point.clone(),
                     })
-                    .ok_or(diesel::result::Error::NotFound)
+                    .ok_or(DieselError::NotFound)
                 )
-                .collect::<DbResult<Vec<FullPolygonPoint>>>()
+                .collect::<std::result::Result<Vec<FullPolygonPoint>, DieselError>>()
+                .map_err(Error::from)
             )
-            .collect::<DbResult<Vec<Vec<FullPolygonPoint>>>>()?;
+            .collect::<Result<Vec<Vec<FullPolygonPoint>>>>()?;
 
         Ok(
             izip!(polygons.into_iter(), labels.into_iter(), full_polygon_points.into_iter())
@@ -158,7 +160,7 @@ impl Full for FullPolygon {
         )
     }
 
-    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> DbResult<usize> {
+    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
         diesel::delete(polygonlabel::table.filter(polygonlabel::polygon_id.eq_any(ids.clone())))
             .execute(conn)?;
 
@@ -182,7 +184,7 @@ impl Full for FullPolygon {
 impl FullInsertable for FullPolygonPost {
     type Base = FullPolygon;
 
-    fn insert(self, conn: &PgConnection) -> DbResult<Self::Base> {
+    fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
         let polygon = self.polygon.insert(conn)?;
 
         let labels = match self.label_ids {
@@ -222,7 +224,7 @@ impl FullInsertable for FullPolygonPost {
 impl FullChangeset for FullPolygonPatch {
     type Base = FullPolygon;
 
-    fn update(self, conn: &PgConnection) -> DbResult<Self::Base> {
+    fn update(self, conn: &PgConnection) -> Result<Self::Base> {
         let polygon = self.polygon.clone().update(conn)?;
 
         if let Some(label_ids) = self.label_ids {
