@@ -50,8 +50,8 @@ fn format_url(protocol: &str, user: Option<String>, password: Option<String>, ho
 fn set_env() -> (String, String) {
     // postgres
     // pulled from shared secret
-    let postgres_user = std::env::var("POSTGRES_USER").unwrap();
-    let postgres_password = std::env::var("POSTGRES_PASSWORD").unwrap();
+    let postgres_user = std::env::var("POSTGRES_USER").ok();
+    let postgres_password = std::env::var("POSTGRES_PASSWORD").ok();
     let postgres_dbname = std::env::var("POSTGRES_DB").unwrap();
 
     // set explicitly
@@ -63,8 +63,8 @@ fn set_env() -> (String, String) {
 
     let postgres_url = format_url(
         "postgres",
-        Some(postgres_user),
-        Some(postgres_password),
+        postgres_user,
+        postgres_password,
         postgres_hostname,
         postgres_port,
         Some(postgres_dbname),
@@ -113,6 +113,7 @@ fn rocket() -> _ {
     rocket::build()
         .manage(redis_pool)
         .mount("/", routes![
+            add_label_to_polygon,
             check_email,
             check_display_name,
             create_polygon,
@@ -128,6 +129,7 @@ fn rocket() -> _ {
             get_tiling_type,
             get_tiling_types,
             match_labels,
+            reset_api_key,
             sign_in,
             sign_out,
             sign_up,

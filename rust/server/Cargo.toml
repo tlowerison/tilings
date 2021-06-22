@@ -8,18 +8,16 @@ edition = "2018"
 
 [dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
-chrono = { version = "0.4.19", features = ["clock"] }
+base64 = "0.13.0"
 diesel = { version = "1.4.4", features = ["postgres", "r2d2"] }
 diesel_migrations = "1.4.0"
 http-types = "2.11.1"
 itertools = "0.10.1"
-jsonwebtoken = "7.2.0"
 lazy_static = "1.4.0"
 mashup = "0.1"
 rand = "0.8.4"
 redis = { version = "*", features = ["r2d2"] }
 r2d2_redis = "0.14.0"
-regex = "1.5.4"
 rocket = { version = "0.5.0-rc.1", features = ["json", "secrets"] }
 rust-argon2 = "0.8.3"
 serde = { version = "1.0", features = ["derive"] }

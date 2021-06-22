@@ -209,6 +209,7 @@ impl FullInsertable for FullPolygonPost {
                 sequence: i as i32,
                 polygon_id: polygon.id,
                 point_id: point.id,
+                is_locked: false,
             }).collect(),
             conn,
         )?;
@@ -276,6 +277,7 @@ impl FullChangeset for FullPolygonPatch {
                         sequence: i as i32,
                         polygon_id: polygon.id,
                         point_id: point.id,
+                        is_locked: false,
                     }).collect(),
                     conn,
                 )?;

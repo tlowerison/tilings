@@ -1,11 +1,12 @@
 use crate::{
+    auth::{APIKeyClaims, AuthAccount},
     models::*,
     result::{Error, Result},
-    schema::account,
+    schema::{account, apikey},
 };
 use argon2::{self, Config};
 use diesel::{PgConnection, prelude::*};
-use rand::Rng;
+use rand::{distributions::Alphanumeric, Rng};
 use rocket::http::Status;
 use validator::validate_email;
 
@@ -40,6 +41,28 @@ pub fn check_display_name(display_name: String, conn: &PgConnection) -> Result<b
         .get_result(conn)
         .optional()?;
     Ok(match count { Some(count) => count == 0, None => false })
+}
+
+pub fn reset_api_key(mut auth_account: AuthAccount, conn: &PgConnection) -> Result<String> {
+    diesel::delete(apikey::table.filter(apikey::account_id.eq(auth_account.id)))
+        .execute(conn)?;
+
+    let email = auth_account.get_account(conn)?.email.clone();
+
+    let api_key: String = rand::thread_rng()
+        .sample_iter(Alphanumeric)
+        .take(100)
+        .map(char::from)
+        .collect();
+
+    let salt: [u8; 32] = rand::thread_rng().gen();
+    let config = Config::default();
+    let api_key_hash = argon2::hash_encoded(&api_key.as_bytes(), &salt, &config).unwrap();
+
+    APIKeyPost { account_id: auth_account.id, content: api_key_hash }
+        .insert(conn)?;
+
+    APIKeyClaims { email, api_key }.encode()
 }
 
 pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<i32> {

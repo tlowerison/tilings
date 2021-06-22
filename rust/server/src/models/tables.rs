@@ -51,13 +51,13 @@ macro_rules! from_data {
                     use rocket::data::ToByteUnit;
 
                     let string = match data.open(2_u8.mebibytes()).into_string().await {
+                        Err(_) => return rocket::data::Outcome::Failure((rocket::http::Status::PayloadTooLarge, ())),
                         Ok(string) => {
                             if !string.is_complete() {
                                 return rocket::data::Outcome::Failure((rocket::http::Status::PayloadTooLarge, ()));
                             }
-                            string
+                            string.into_inner()
                         },
-                        Err(_) => return rocket::data::Outcome::Failure((rocket::http::Status::PayloadTooLarge, ())),
                     };
                     match serde_json::from_str(&string) {
                         Ok(entity) => rocket::data::Outcome::Success(entity),
@@ -257,10 +257,18 @@ crud! {
         role_id: i32,
     },
 
+    "apikey", apikey, Account,
+    struct APIKey {
+        account_id: i32,
+        content: String,
+    },
+
     "atlas", atlas, Tiling TilingType,
     struct Atlas {
         tiling_id: i32,
         tiling_type_id: i32,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "atlasedge", atlasedge, Atlas PolygonPoint,
@@ -269,12 +277,16 @@ crud! {
         polygon_point_id: i32,
         source_id: i32,
         sink_id: i32,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "atlasvertex", atlasvertex, Atlas,
     struct AtlasVertex {
         atlas_id: i32,
         title: Option<String>,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "label", label,,
@@ -286,11 +298,15 @@ crud! {
     struct Point {
         x: f64,
         y: f64,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "polygon", polygon,,
     struct Polygon {
         title: String,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "polygonlabel", polygonlabel, Polygon Label,
@@ -304,6 +320,8 @@ crud! {
         polygon_id: i32,
         point_id: i32,
         sequence: i32,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "role", role,,
@@ -315,6 +333,8 @@ crud! {
     struct Tiling {
         title: String,
         tiling_type_id: i32,
+        #[serde(skip_deserializing)]
+        is_locked: bool,
     },
 
     "tilinglabel", tilinglabel, Tiling Label,

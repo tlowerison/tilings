@@ -1,4 +1,4 @@
-use crate::auth::ApiKeyError;
+use crate::auth::APIKeyError;
 use diesel::result::Error as DieselError;
 use r2d2_redis::{r2d2::Error as R2D2Error, redis::RedisError};
 use rocket::{
@@ -13,7 +13,7 @@ pub const UNAUTHORIZED_ERR_MSG: &'static str = "Unauthorized.";
 
 #[derive(Debug)]
 pub enum Error {
-    ApiKey(ApiKeyError),
+    APIKey(APIKeyError),
     Custom(Status, String),
     Default,
     Diesel(DieselError),
@@ -25,7 +25,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::ApiKey(err) => write!(f, "{}", err),
+            Error::APIKey(err) => write!(f, "{}", err),
             Error::Custom(_, msg) => write!(f, "{}", msg),
             Error::Default => write!(f, ""),
             Error::Diesel(err) => write!(f, "{}", err),
@@ -59,7 +59,7 @@ macro_rules! error_type {
 }
 
 error_type!{
-    ApiKey,
+    APIKey,
     Diesel,
     R2D2,
     Redis
@@ -75,12 +75,12 @@ struct Response {
 impl From<Error> for Response {
     fn from(err: Error) -> Response {
         match err {
-            Error::ApiKey(err) => match err {
-                ApiKeyError::Invalid => Response {
+            Error::APIKey(err) => match err {
+                APIKeyError::Invalid => Response {
                     message: String::from(API_KEY_INVALID_ERR_MSG),
                     status: Status::Unauthorized,
                 },
-                ApiKeyError::Missing => Response {
+                APIKeyError::Missing => Response {
                     message: String::from(API_KEY_MISSING_ERR_MSG),
                     status: Status::Unauthorized,
                 },

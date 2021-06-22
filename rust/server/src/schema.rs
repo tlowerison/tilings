@@ -17,10 +17,19 @@ table! {
 }
 
 table! {
+    apikey (id) {
+        id -> Int4,
+        account_id -> Int4,
+        content -> Varchar,
+    }
+}
+
+table! {
     atlas (id) {
         id -> Int4,
         tiling_id -> Int4,
         tiling_type_id -> Int4,
+        is_locked -> Bool,
     }
 }
 
@@ -31,6 +40,7 @@ table! {
         polygon_point_id -> Int4,
         source_id -> Int4,
         sink_id -> Int4,
+        is_locked -> Bool,
     }
 }
 
@@ -39,6 +49,7 @@ table! {
         id -> Int4,
         atlas_id -> Int4,
         title -> Nullable<Varchar>,
+        is_locked -> Bool,
     }
 }
 
@@ -54,6 +65,7 @@ table! {
         id -> Int4,
         x -> Float8,
         y -> Float8,
+        is_locked -> Bool,
     }
 }
 
@@ -61,6 +73,7 @@ table! {
     polygon (id) {
         id -> Int4,
         title -> Varchar,
+        is_locked -> Bool,
     }
 }
 
@@ -78,6 +91,7 @@ table! {
         polygon_id -> Int4,
         point_id -> Int4,
         sequence -> Int4,
+        is_locked -> Bool,
     }
 }
 
@@ -93,6 +107,7 @@ table! {
         id -> Int4,
         title -> Varchar,
         tiling_type_id -> Int4,
+        is_locked -> Bool,
     }
 }
 
@@ -113,6 +128,7 @@ table! {
 
 joinable!(accountrole -> account (account_id));
 joinable!(accountrole -> role (role_id));
+joinable!(apikey -> account (account_id));
 joinable!(atlas -> tiling (tiling_id));
 joinable!(atlasedge -> atlas (atlas_id));
 joinable!(atlasedge -> polygonpoint (polygon_point_id));
@@ -128,6 +144,7 @@ joinable!(tilinglabel -> tiling (tiling_id));
 allow_tables_to_appear_in_same_query!(
     account,
     accountrole,
+    apikey,
     atlas,
     atlasedge,
     atlasvertex,

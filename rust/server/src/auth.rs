@@ -1,13 +1,13 @@
 use crate::{
+    connection::DbConn,
     models::*,
-    result::Error,
+    result::{Error, Result},
     schema::accountrole,
 };
-use chrono::offset::Utc;
+use argon2;
+use base64;
 use diesel::{self, PgConnection, prelude::*};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, TokenData, Validation};
 use lazy_static::lazy_static;
-use regex::Regex;
 use r2d2_redis::{r2d2::Pool, RedisConnectionManager};
 use rocket::{
     http::Status,
@@ -21,10 +21,13 @@ use std::{
     ops::DerefMut,
 };
 
-pub const SECRET: &'static str = "JWT_TOKEN";
-pub const TOKEN_DURATION_IN_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
 pub const AUTHORIZATION_HEADER_KEY: &'static str = "Authorization";
 pub const COOKIE_KEY: &'static str = "tilings_account_id";
+pub const SECRET: &'static str = "JWT_TOKEN";
+pub const TOKEN_DURATION_IN_SECONDS: i64 = 10 * 365 * 24 * 60 * 60;
+lazy_static! {
+    static ref AUTHORIZATION_HEADER_VALUE_PREFIX_END_INDEX: usize = "Bearer ".len();
+}
 
 #[derive(Debug, Clone)]
 pub enum Role {
@@ -74,7 +77,7 @@ pub struct AuthAccount {
     roles: Option<HashSet<Role>>,
 }
 
-impl AuthAccount {
+impl<'a> AuthAccount {
     pub fn new(id: i32) -> AuthAccount {
         AuthAccount { id, account: None, roles: None }
     }
@@ -83,15 +86,7 @@ impl AuthAccount {
         roles.intersection(&allowed_roles).collect::<HashSet<_>>().len() > 0
     }
 
-    fn pull_account(&mut self, conn: &PgConnection) -> Result<(), Error> {
-        if let Some(_) = &self.account {
-            return Ok(())
-        }
-        self.account = Some(Account::find(self.id, conn)?);
-        Ok(())
-    }
-
-    fn pull_roles(&mut self, conn: &PgConnection) -> Result<(), Error> {
+    fn pull_roles(&mut self, conn: &PgConnection) -> Result<()> {
         if let Some(_) = &self.roles {
             return Ok(())
         }
@@ -107,7 +102,14 @@ impl AuthAccount {
         Ok(())
     }
 
-    pub fn allowed(&mut self, allowed_roles: &HashSet<Role>, conn: &PgConnection) -> Result<bool, Error> {
+    pub fn get_account(&'a mut self, conn: &PgConnection) -> Result<&'a Account> {
+        if let None = self.account {
+            self.account = Some(Account::find(self.id, conn)?);
+        }
+        Ok(self.account.as_ref().unwrap())
+    }
+
+    pub fn allowed(&mut self, allowed_roles: &HashSet<Role>, conn: &PgConnection) -> Result<bool> {
         self.pull_roles(conn)?;
         if AuthAccount::has_intersection(self.roles.as_ref().unwrap(), allowed_roles) {
             Ok(true)
@@ -116,8 +118,8 @@ impl AuthAccount {
         }
     }
 
-    pub fn verified(&mut self, conn: &PgConnection) -> Result<bool, Error> {
-        self.pull_account(conn)?;
+    pub fn verified(&mut self, conn: &PgConnection) -> Result<bool> {
+        self.get_account(conn)?;
         if self.account.as_ref().unwrap().verified {
             Ok(true)
         } else {
@@ -127,51 +129,44 @@ impl AuthAccount {
 }
 
 #[derive(Debug)]
-pub enum ApiKeyError {
+pub enum APIKeyError {
     Invalid,
     Missing,
 }
 
-impl std::fmt::Display for ApiKeyError {
+impl std::fmt::Display for APIKeyError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ApiKeyError::Invalid => write!(f, "Invalid API key."),
-            ApiKeyError::Missing => write!(f, "Missing API Key."),
+            APIKeyError::Invalid => write!(f, "Invalid API key."),
+            APIKeyError::Missing => write!(f, "Missing API Key."),
         }
+    }
+}
+
+impl APIKeyError {
+    pub fn outcome(self) -> Outcome<AuthAccount, Error> {
+        Outcome::Failure((Status::Unauthorized, Error::APIKey(self)))
     }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Claims {
-    pub exp: i64, // Expiration time (as UTC timestamp). (validate_exp defaults to true in validation)
-    pub iat: i64, // Issued at (as UTC timestamp)
-    pub sub: i32, // Subject (whom token refers to: Account.id)
+pub struct APIKeyClaims {
+    pub email: String,
+    pub api_key: String,
 }
 
-impl Claims {
-    pub fn new(account_id: i32) -> Claims {
-        Claims {
-            exp: Utc::now().timestamp() + TOKEN_DURATION_IN_SECONDS,
-            iat: Utc::now().timestamp(),
-            sub: account_id,
-        }
+impl APIKeyClaims {
+    fn decode(encoded: &str) -> Result<APIKeyClaims> {
+        let decoded = base64::decode(encoded).or(Err(Error::APIKey(APIKeyError::Invalid)))?;
+        let decoded = std::str::from_utf8(decoded.as_slice()).or(Err(Error::APIKey(APIKeyError::Invalid)))?;
+        serde_json::from_str::<APIKeyClaims>(decoded)
+            .or(Err(Error::APIKey(APIKeyError::Invalid)))
     }
-}
 
-pub fn encode(claims: Claims) -> jsonwebtoken::errors::Result<String> {
-    jsonwebtoken::encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(SECRET.as_ref()),
-    )
-}
-
-pub fn decode(token: &str) -> jsonwebtoken::errors::Result<TokenData<Claims>> {
-    jsonwebtoken::decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(SECRET.as_ref()),
-        &Validation::default(),
-    )
+    pub fn encode(self) -> Result<String> {
+        let serialized = serde_json::to_string(&self).or(Err(Error::Default))?;
+        Ok(base64::encode(String::from(serialized)))
+    }
 }
 
 #[rocket::async_trait]
@@ -201,30 +196,45 @@ impl<'r> FromRequest<'r> for AuthAccount {
                     let account_id = cookie_value.parse::<i32>();
                     return match account_id {
                         Ok(account_id) => Outcome::Success(AuthAccount::new(account_id)),
-                        _ => Outcome::Failure((Status::Unauthorized, Error::ApiKey(ApiKeyError::Invalid))),
+                        _ => APIKeyError::Invalid.outcome(),
                     }
                 },
-                None => Outcome::Failure((Status::Unauthorized, Error::ApiKey(ApiKeyError::Missing))),
+                None => APIKeyError::Missing.outcome(),
             },
             Some(key) => {
-                lazy_static! {
-                    static ref RE: Regex = Regex::new(r"(?<=Bearer: ).*").unwrap();
-                }
+                let token = key
+                    .chars()
+                    .into_iter()
+                    .skip(*AUTHORIZATION_HEADER_VALUE_PREFIX_END_INDEX)
+                    .collect::<String>();
 
-                let token = match RE.find(key) {
-                    Some(matched) => matched.as_str(),
-                    None => return Outcome::Failure((Status::Unauthorized, Error::ApiKey(ApiKeyError::Invalid))),
+                let api_key_claims = match APIKeyClaims::decode(&token) {
+                    Ok(api_key_claims) => api_key_claims,
+                    Err(_) => return APIKeyError::Invalid.outcome(),
                 };
 
-                let token_data = match decode(token) {
-                    Ok(token_data) => token_data,
-                    Err(_) => return Outcome::Failure((Status::Unauthorized, Error::ApiKey(ApiKeyError::Invalid))),
+                let email = api_key_claims.email;
+                let api_key_content = api_key_claims.api_key;
+
+                let db = match req.guard::<DbConn>().await {
+                    Outcome::Success(db) => db,
+                    _ => return Outcome::Failure((Status::InternalServerError, Error::Default)),
                 };
 
-                if token_data.claims.exp >= Utc::now().timestamp() {
-                    Outcome::Success(AuthAccount::new(token_data.claims.sub))
+                let api_key = match db.run(move |conn| APIKey::find_by_email(email, conn)).await {
+                    Ok(api_key) => api_key,
+                    _ => return APIKeyError::Invalid.outcome(),
+                };
+
+                let is_match = match argon2::verify_encoded(&api_key.content, api_key_content.as_bytes()) {
+                    Ok(is_match) => is_match,
+                    _ => return Outcome::Failure((Status::InternalServerError, Error::Default)),
+                };
+
+                if is_match {
+                    Outcome::Success(AuthAccount::new(api_key.account_id))
                 } else {
-                    Outcome::Failure((Status::Unauthorized, Error::ApiKey(ApiKeyError::Invalid)))
+                    APIKeyError::Invalid.outcome()
                 }
             },
         }

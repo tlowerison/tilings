@@ -13,7 +13,7 @@ use r2d2_redis::{
     RedisConnectionManager,
 };
 use rocket::{
-    http::{Cookie, CookieJar, Status},
+    http::{Cookie, CookieJar},
     serde::json::Json,
     State,
 };
@@ -40,14 +40,9 @@ pub async fn check_display_name(display_name: String, db: DbConn) -> Result<Json
     db.run(move |conn| queries::check_display_name(display_name, conn)).await.map(Json)
 }
 
-#[get("/apikey")]
-pub async fn get_api_key(auth_account: AuthAccount) -> Result<Json<String>> {
-    encode(Claims::new(auth_account.id))
-        .or(Err(Error::Custom(
-            Status::InternalServerError,
-            String::from("Could not create API key."),
-        )))
-        .map(Json)
+#[get("/reset-api-key")]
+pub async fn reset_api_key(db: DbConn, auth_account: AuthAccount) -> Result<Json<String>> {
+    db.run(move |conn| conn.build_transaction().run(|| queries::reset_api_key(auth_account, conn))).await.map(Json)
 }
 
 #[post("/sign-in", data = "<sign_in_post>")]
