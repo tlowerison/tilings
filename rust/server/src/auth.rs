@@ -17,7 +17,7 @@ use rocket::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_set::HashSet,
-    hash::{Hash, Hasher},
+    hash::Hash,
     ops::DerefMut,
 };
 
@@ -29,7 +29,7 @@ lazy_static! {
     static ref AUTHORIZATION_HEADER_VALUE_PREFIX_END_INDEX: usize = "Bearer ".len();
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Role {
     Admin,
     Editor,
@@ -42,22 +42,6 @@ impl std::fmt::Display for Role {
             Role::Admin => write!(f, "Admin"),
             Role::Editor => write!(f, "Editor"),
             Role::ReadOnly => write!(f, "ReadOnly"),
-        }
-    }
-}
-
-impl PartialEq for Role {
-    fn eq(&self, other: &Role) -> bool { self == other }
-}
-
-impl Eq for Role {}
-
-impl Hash for Role {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Role::ReadOnly => 1_u8.hash(state),
-            Role::Editor => 2_u8.hash(state),
-            Role::Admin => 3_u8.hash(state),
         }
     }
 }
@@ -83,7 +67,12 @@ impl<'a> AuthAccount {
     }
 
     fn has_intersection(roles: &HashSet<Role>, allowed_roles: &HashSet<Role>) -> bool {
-        roles.intersection(&allowed_roles).collect::<HashSet<_>>().len() > 0
+        for role in roles.iter() {
+            if allowed_roles.contains(role) {
+                return true
+            }
+        }
+        return false
     }
 
     fn pull_roles(&mut self, conn: &PgConnection) -> Result<()> {
