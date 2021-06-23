@@ -1,0 +1,12 @@
+[package]
+name = "db_conn"
+version = "0.1.0"
+authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+diesel = { version = "1.4.4", features = ["postgres", "r2d2"] }
+
+[dependencies.rocket_sync_db_pools]
+version = "0.1.0-rc.1"
+features = ["diesel_postgres_pool"]

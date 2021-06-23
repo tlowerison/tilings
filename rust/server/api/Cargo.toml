@@ -1,0 +1,20 @@
+[package]
+name = "api"
+version = "0.1.0"
+authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+auth = { path = "../auth" }
+db_conn = { path = "../db_conn" }
+models = { path = "../models" }
+queries = { path = "../queries" }
+result = { path = "../result" }
+
+async-std = { version = "1.8.0", features = ["attributes"] }
+lazy_static = "1.4.0"
+rand = "0.8.4"
+r2d2_redis = "0.14.0"
+rocket = { version = "0.5.0-rc.1", features = ["json", "secrets"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.64"

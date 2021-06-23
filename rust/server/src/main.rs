@@ -1,21 +1,8 @@
-#![recursion_limit="1024"]
-
-pub mod api;
-pub mod auth;
-pub mod connection;
-pub mod models;
-pub mod queries;
-pub mod result;
-pub mod schema;
-
-extern crate argon2;
-#[macro_use] extern crate diesel;
 #[macro_use] extern crate diesel_migrations;
-#[macro_use] extern crate itertools;
-#[macro_use] extern crate mashup;
 #[macro_use] extern crate rocket;
 
 use api::*;
+use db_conn::DbConn;
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 use r2d2_redis::{r2d2, RedisConnectionManager};
@@ -137,5 +124,5 @@ fn rocket() -> _ {
             upsert_label,
             update_polygon,
         ])
-        .attach(connection::DbConn::fairing())
+        .attach(DbConn::fairing())
 }

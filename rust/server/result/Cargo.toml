@@ -1,27 +1,11 @@
 [package]
-name = "server"
-version = "0.1.5"
+name = "result"
+version = "0.1.0"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
-api = { path = "./api" }
-db_conn = { path = "./db_conn" }
 diesel = { version = "1.4.4", features = ["postgres", "r2d2"] }
-diesel_migrations = "1.4.0"
+mashup = "0.1"
 r2d2_redis = "0.14.0"
 rocket = { version = "0.5.0-rc.1", features = ["json", "secrets"] }
-
-[workspace]
-members = [
-  "api",
-  "auth",
-  "db_conn",
-  "models",
-  "queries",
-  "result",
-  "schema",
-]
-
-[profile.dev]
-split-debuginfo = "unpacked"
