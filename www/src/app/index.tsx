@@ -17,6 +17,7 @@ const canvasHeight = isMobile()
 
 type TextSearchItem = {
   title: string;
+  table: string;
   labels: { content: string }[];
 };
 
@@ -77,8 +78,10 @@ export const App = () => {
       </select>
       <Autocomplete
         getOptionLabel={
-          ({ title, labels }) => `${
+          ({ title, labels, table }) => `${
             title
+          } - ${
+            table
           }${
             labels.length === 0
               ? ""
