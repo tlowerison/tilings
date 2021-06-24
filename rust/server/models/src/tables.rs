@@ -12,6 +12,9 @@ use diesel::{
 #[cfg(not(target_arch = "wasm32"))] use std::hash::{Hash, Hasher};
 
 #[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
 mod internal {
     #[macro_export]
     macro_rules! from_data {
@@ -43,31 +46,79 @@ mod internal {
             paste! {
                 $(
                     #[derive(Clone, Debug, Deserialize, Serialize)]
+                    #[wasm_bindgen]
                     pub struct $name {
                         pub id: i32,
                         $(
                             $(#[$field_meta])*
-                            pub $field_name: $field_type,
+                            $field_name: $field_type,
+                        )*
+                    }
+
+                    #[wasm_bindgen]
+                    impl $name {
+                        $(
+                            #[wasm_bindgen(getter)]
+                            pub fn $field_name(&self) -> $field_type {
+                                self.$field_name.clone()
+                            }
+
+                            #[wasm_bindgen(setter)]
+                            pub fn [<set_ $field_name>](&mut self, value: $field_type) {
+                                self.$field_name = value;
+                            }
                         )*
                     }
 
                     #[derive(Clone, Debug, Deserialize, Serialize)]
+                    #[wasm_bindgen]
                     $(#[$struct_meta])*
                     pub struct [<$name Post>] {
                         $(
                             $(#[$field_meta])*
-                            pub $field_name: $field_type,
+                            $field_name: $field_type,
+                        )*
+                    }
+
+                    #[wasm_bindgen]
+                    impl [<$name Post>] {
+                        $(
+                            #[wasm_bindgen(getter)]
+                            pub fn $field_name(&self) -> $field_type {
+                                self.$field_name.clone()
+                            }
+
+                            #[wasm_bindgen(setter)]
+                            pub fn [<set_ $field_name>](&mut self, value: $field_type) {
+                                self.$field_name = value;
+                            }
                         )*
                     }
 
 
                     #[derive(Clone, Debug, Deserialize, Serialize)]
+                    #[wasm_bindgen]
                     $(#[$struct_meta])*
                     pub struct [<$name Patch>] {
                         pub id: i32,
                         $(
                             $(#[$field_meta])*
-                            pub $field_name: Option<$field_type>,
+                            $field_name: Option<$field_type>,
+                        )*
+                    }
+
+                    #[wasm_bindgen]
+                    impl [<$name Patch>] {
+                        $(
+                            #[wasm_bindgen(getter)]
+                            pub fn $field_name(&self) -> Option<$field_type> {
+                                self.$field_name.clone()
+                            }
+
+                            #[wasm_bindgen(setter)]
+                            pub fn [<set_ $field_name>](&mut self, value: Option<$field_type>) {
+                                self.$field_name = value;
+                            }
                         )*
                     }
 
