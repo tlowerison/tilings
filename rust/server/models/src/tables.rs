@@ -9,6 +9,7 @@ use diesel::{
 };
 #[cfg(not(target_arch = "wasm32"))] use result::{Error, Result};
 #[cfg(not(target_arch = "wasm32"))] use schema::*;
+#[cfg(not(target_arch = "wasm32"))] use std::hash::{Hash, Hasher};
 
 #[cfg(target_arch = "wasm32")]
 mod internal {
@@ -203,6 +204,20 @@ mod internal {
                             )
                                 .execute(conn)
                                 .map_err(Error::from)
+                        }
+                    }
+
+                    impl PartialEq for $name {
+                        fn eq(&self, other: &$name) -> bool {
+                            self.id == other.id
+                        }
+                    }
+
+                    impl Eq for $name {}
+
+                    impl Hash for $name {
+                        fn hash<H: Hasher>(&self, state: &mut H) {
+                            self.id.hash(state);
                         }
                     }
 

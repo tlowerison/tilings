@@ -1,5 +1,6 @@
 use crate::{from_data, tables::*};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_set::HashSet;
 
 #[derive(Deserialize, Serialize)]
 pub struct TextSearchItem {
@@ -19,16 +20,22 @@ mod internal {
     use result::Result;
 
     pub trait TextSearchable {
+        type LeftDBTuple;
+        type InnerDBTuple;
         type GroupItem;
 
         fn process_groups(vec: Vec<Self::GroupItem>) -> Vec<TextSearchItem>;
-        fn search_title(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>>;
-        fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>>;
+        fn search_title(query: String, conn: &PgConnection) -> Result<Vec<Self::GroupItem>>;
+        fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<Self::GroupItem>>;
 
         fn text_search(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>> {
             let title_matches = Self::search_title(query.clone(), conn)?;
             let label_matches = Self::search_labels(query, conn)?;
-            Ok(title_matches.into_iter().chain(label_matches.into_iter()).collect())
+            Ok(Self::process_groups(
+                title_matches.into_iter()
+                    .chain(label_matches.into_iter())
+                    .collect()
+            ))
         }
     }
 
@@ -37,41 +44,49 @@ mod internal {
             paste! {
                 $(
                     impl TextSearchable for $name {
-                        type GroupItem = ($name, ([<$name Label>] , Label));
+                        type LeftDBTuple = ($name, Option<([<$name Label>] , Label)>);
+                        type InnerDBTuple = ($name, ([<$name Label>] , Label));
+                        type GroupItem = (i32, Self::LeftDBTuple);
 
-                        fn search_title(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>> {
-                            Ok($name::process_groups(
+                        fn search_title(query: String, conn: &PgConnection) -> Result<Vec<Self::GroupItem>> {
+                            Ok(
                                 schema::$table::table.filter(schema::$table::title.like(format!("%{}%", query)))
-                                    .inner_join(schema::[<$table label>]::table.inner_join(schema::label::table))
-                                    .load::<Self::GroupItem>(conn)?
-                            ))
+                                    .left_join(schema::[<$table label>]::table.inner_join(schema::label::table))
+                                    .load::<Self::LeftDBTuple>(conn)?
+                                    .into_iter()
+                                    .map(|db_tuple| (db_tuple.0.id, db_tuple))
+                                    .collect()
+                            )
                         }
 
-                        fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<TextSearchItem>> {
+                        fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<Self::GroupItem>> {
                             let base_ids = schema::label::table.filter(schema::label::content.like(format!("%{}%", query)))
                                 .inner_join(schema::[<$table label>]::table.inner_join(schema::$table::table))
                                 .select(schema::$table::id)
                                 .load::<i32>(conn)?;
-                            Ok($name::process_groups(
+                            Ok(
                                 schema::$table::table.filter(schema::$table::id.eq_any(base_ids))
                                     .inner_join(schema::[<$table label>]::table.inner_join(schema::label::table))
-                                    .load::<Self::GroupItem>(conn)?
-                            ))
+                                    .load::<Self::InnerDBTuple>(conn)?
+                                    .into_iter()
+                                    .map(|(entity, label_tuple)| (label_tuple.0.[<$table _id>], (entity, Some(label_tuple))))
+                                    .collect()
+                            )
                         }
 
                         fn process_groups(group_items: Vec<Self::GroupItem>) -> Vec<TextSearchItem> {
                             group_items.into_iter()
-                                .group_by(|(item, _)| item.id)
+                                .into_group_map()
                                 .into_iter()
-                                .map(|(id, group)| {
-                                    let group = group.collect::<Vec<Self::GroupItem>>();
-
-                                    TextSearchItem {
-                                        id: id,
-                                        table: String::from(stringify!($name)),
-                                        title: group.get(0).unwrap().0.title.clone(),
-                                        labels: group.into_iter().map(|(_, (_, label))| label).collect(),
-                                    }
+                                .map(|(entity_id, group_items)| TextSearchItem {
+                                    id: entity_id.clone(),
+                                    table: String::from(stringify!($name)),
+                                    title: group_items.get(0).unwrap().0.title.clone(),
+                                    labels: group_items.into_iter()
+                                        .filter_map(|(_, db_tuple)| db_tuple.map(|(_, label)| label))
+                                        .collect::<HashSet<Label>>()
+                                        .into_iter()
+                                        .collect(),
                                 })
                                 .collect()
                         }
