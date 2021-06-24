@@ -116,11 +116,12 @@ fn rocket() -> _ {
             get_tiling_type,
             get_tiling_types,
             match_labels,
+            omni_search,
             reset_api_key,
             sign_in,
             sign_out,
             sign_up,
-            text_search,
+            tiling_search,
             update_polygon,
             upsert_label,
         ])

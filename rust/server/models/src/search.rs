@@ -1,5 +1,6 @@
 use crate::{from_data, tables::*};
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
 use std::collections::hash_set::HashSet;
 
 #[derive(Deserialize, Serialize)]
@@ -78,15 +79,23 @@ mod internal {
                             group_items.into_iter()
                                 .into_group_map()
                                 .into_iter()
-                                .map(|(entity_id, group_items)| TextSearchItem {
-                                    id: entity_id.clone(),
-                                    table: String::from(stringify!($name)),
-                                    title: group_items.get(0).unwrap().0.title.clone(),
-                                    labels: group_items.into_iter()
+                                .map(|(entity_id, group_items)| {
+                                    let title = group_items.get(0).unwrap().0.title.clone();
+
+                                    let mut labels = group_items.into_iter()
                                         .filter_map(|(_, db_tuple)| db_tuple.map(|(_, label)| label))
                                         .collect::<HashSet<Label>>()
                                         .into_iter()
-                                        .collect(),
+                                        .collect::<Vec<Label>>();
+
+                                    labels.sort_by(|a, b| a.content.partial_cmp(&b.content).unwrap());
+
+                                    TextSearchItem {
+                                        id: entity_id.clone(),
+                                        table: String::from(stringify!($name)),
+                                        title,
+                                        labels,
+                                    }
                                 })
                                 .collect()
                         }

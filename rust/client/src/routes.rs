@@ -270,6 +270,20 @@ get_delete! {
         limit: u32,
     },
 
+    "GET", "/match-labels?query={}", match_labels, matchLabels,
+    Vec<models::Label>,
+    Params {},
+    Query {
+        query: String,
+    },
+
+    "GET", "/omni-search?query={}", omni_search, omniSearch,
+    Vec<models::TextSearchItem>,
+    Params {},
+    Query {
+        query: String,
+    },
+
     "GET", "/polygon/{}", get_polygon, getPolygon,
     models::FullPolygon,
     Params {
@@ -285,6 +299,11 @@ get_delete! {
         end_id: i32,
         limit: u32,
     },
+
+    "GET", "/reset-api-key", reset_api_key, resetApiKey,
+    String,
+    Params {},
+    Query {},
 
     "GET", "/tiling/{}", get_tiling, getTiling,
     models::FullTiling,
@@ -302,6 +321,13 @@ get_delete! {
         limit: u32,
     },
 
+    "GET", "/tiling-search?query={}", tiling_search, tilingSearch,
+    Vec<models::TextSearchItem>,
+    Params {},
+    Query {
+        query: String,
+    },
+
     "GET", "/tiling-type/{}", get_tiling_type, getTilingType,
     models::TilingType,
     Params {
@@ -316,25 +342,6 @@ get_delete! {
         start_id: i32,
         end_id: i32,
         limit: u32,
-    },
-
-    "GET", "/match-labels?query={}", match_labels, matchLabels,
-    Vec<models::Label>,
-    Params {},
-    Query {
-        query: String,
-    },
-
-    "GET", "/reset-api-key", reset_api_key, resetApiKey,
-    String,
-    Params {},
-    Query {},
-
-    "GET", "/text-search?query={}", text_search, textSearch,
-    Vec<models::TextSearchItem>,
-    Params {},
-    Query {
-        query: String,
     },
 }
 
