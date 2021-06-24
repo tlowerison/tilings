@@ -5,12 +5,17 @@ authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
+paste = "1.0.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.64"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
 diesel = { version = "1.4.4" }
 itertools = "0.10.1"
-mashup = "0.1"
 result = { path = "../result" }
 rocket = { version = "0.5.0-rc.1" }
 schema = { path = "../schema" }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0.64"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2.74", features = ["serde-serialize"] }

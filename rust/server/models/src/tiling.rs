@@ -1,12 +1,5 @@
-use crate::{
-    from_data,
-    tables::*,
-};
-use diesel::{self, prelude::*, result::Error as DieselError};
-use result::{Error, Result};
-use schema::*;
+use crate::{from_data, tables::*};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize)]
 pub struct FullTiling {
@@ -32,119 +25,131 @@ from_data! {
     FullTilingPatch
 }
 
-impl Full for FullTiling {
-    fn find(id: i32, conn: &PgConnection) -> Result<Self> {
-        let tiling = Tiling::find(id, conn)?;
+#[cfg(not(target_arch = "wasm32"))]
+mod internal {
+    use super::*;
+    use diesel::{self, prelude::*, result::Error as DieselError};
+    use result::{Error, Result};
+    use schema::*;
+    use std::collections::HashMap;
 
-        let labels = TilingLabel::belonging_to(&tiling)
-            .inner_join(label::table)
-            .select(label::all_columns)
-            .load(conn)?;
+    impl Full for FullTiling {
+        fn find(id: i32, conn: &PgConnection) -> Result<Self> {
+            let tiling = Tiling::find(id, conn)?;
 
-        Ok(FullTiling { tiling, labels })
-    }
+            let labels = TilingLabel::belonging_to(&tiling)
+                .inner_join(label::table)
+                .select(label::all_columns)
+                .load(conn)?;
 
-    fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
-        Tiling::delete(id, conn)
-    }
+            Ok(FullTiling { tiling, labels })
+        }
 
-    fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
-        let tilings = Tiling::find_batch(ids, conn)?;
+        fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
+            Tiling::delete(id, conn)
+        }
 
-        let all_tiling_labels = TilingLabel::belonging_to(&tilings)
-            .load::<TilingLabel>(conn)?;
+        fn find_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<Vec<Self>> {
+            let tilings = Tiling::find_batch(ids, conn)?;
 
-        let all_labels = Label::find_batch(
-            all_tiling_labels.iter().map(|tl| tl.label_id).collect(),
-            conn,
-        )?
-            .into_iter()
-            .map(|label| (label.id, label))
-            .collect::<HashMap<i32, Label>>();
+            let all_tiling_labels = TilingLabel::belonging_to(&tilings)
+                .load::<TilingLabel>(conn)?;
 
-        let labels = all_tiling_labels
-            .grouped_by(&tilings)
-            .into_iter()
-            .map(|tls| tls
+            let all_labels = Label::find_batch(
+                all_tiling_labels.iter().map(|tl| tl.label_id).collect(),
+                conn,
+            )?
                 .into_iter()
-                .map(|tl| all_labels
-                    .get(&tl.label_id)
-                    .map(|label| label.clone())
-                    .ok_or(diesel::result::Error::NotFound)
+                .map(|label| (label.id, label))
+                .collect::<HashMap<i32, Label>>();
+
+            let labels = all_tiling_labels
+                .grouped_by(&tilings)
+                .into_iter()
+                .map(|tls| tls
+                    .into_iter()
+                    .map(|tl| all_labels
+                        .get(&tl.label_id)
+                        .map(|label| label.clone())
+                        .ok_or(diesel::result::Error::NotFound)
+                    )
+                    .collect::<std::result::Result<Vec<Label>, DieselError>>()
+                    .map_err(Error::from)
                 )
-                .collect::<std::result::Result<Vec<Label>, DieselError>>()
-                .map_err(Error::from)
+                .collect::<Result<Vec<Vec<Label>>>>()?;
+
+            Ok(
+                izip!(tilings.into_iter(), labels.into_iter())
+                    .map(|(tiling, labels)| FullTiling { tiling, labels, })
+                    .collect()
             )
-            .collect::<Result<Vec<Vec<Label>>>>()?;
+        }
 
-        Ok(
-            izip!(tilings.into_iter(), labels.into_iter())
-                .map(|(tiling, labels)| FullTiling { tiling, labels, })
-                .collect()
-        )
+        fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
+            diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq_any(ids.clone())))
+                .execute(conn)?;
+
+            Tiling::delete_batch(ids, conn)
+        }
     }
 
-    fn delete_batch(ids: Vec<i32>, conn: &PgConnection) -> Result<usize> {
-        diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq_any(ids.clone())))
-            .execute(conn)?;
+    impl FullInsertable for FullTilingPost {
+        type Base = FullTiling;
 
-        Tiling::delete_batch(ids, conn)
+        fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
+            let tiling = self.tiling.insert(conn)?;
+
+            let labels = match self.label_ids {
+                None => Vec::<Label>::with_capacity(0),
+                Some(label_ids) => {
+                    TilingLabelPost::insert_batch(
+                        label_ids
+                            .clone()
+                            .into_iter()
+                            .map(|label_id| TilingLabelPost { label_id, tiling_id: tiling.id })
+                            .collect(),
+                        conn,
+                    )?;
+                    Label::find_batch(label_ids, conn)?
+                },
+            };
+
+            Ok(FullTiling { tiling, labels })
+        }
     }
-}
 
-impl FullInsertable for FullTilingPost {
-    type Base = FullTiling;
+    impl FullChangeset for FullTilingPatch {
+        type Base = FullTiling;
 
-    fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
-        let tiling = self.tiling.insert(conn)?;
+        fn update(self, conn: &PgConnection) -> Result<Self::Base> {
+            let tiling = self.tiling.clone().update(conn)?;
 
-        let labels = match self.label_ids {
-            None => Vec::<Label>::with_capacity(0),
-            Some(label_ids) => {
+            if let Some(label_ids) = self.label_ids {
+                let existing_tiling_labels = tilinglabel::table.filter(tilinglabel::tiling_id.eq(self.tiling.id)).load::<TilingLabel>(conn)?;
+
+                let existing_tiling_label_ids = existing_tiling_labels.iter()
+                    .map(|tiling_label| tiling_label.id)
+                    .collect::<Vec<i32>>();
+                TilingLabel::delete_batch(existing_tiling_label_ids, conn)?;
+
                 TilingLabelPost::insert_batch(
                     label_ids
-                        .clone()
                         .into_iter()
                         .map(|label_id| TilingLabelPost { label_id, tiling_id: tiling.id })
                         .collect(),
                     conn,
                 )?;
-                Label::find_batch(label_ids, conn)?
-            },
-        };
+            }
 
-        Ok(FullTiling { tiling, labels })
-    }
-}
+            let labels = TilingLabel::belonging_to(&tiling)
+                .inner_join(label::table)
+                .select(label::all_columns)
+                .load::<Label>(conn)?;
 
-impl FullChangeset for FullTilingPatch {
-    type Base = FullTiling;
-
-    fn update(self, conn: &PgConnection) -> Result<Self::Base> {
-        let tiling = self.tiling.clone().update(conn)?;
-
-        if let Some(label_ids) = self.label_ids {
-            let existing_tiling_labels = tilinglabel::table.filter(tilinglabel::tiling_id.eq(self.tiling.id)).load::<TilingLabel>(conn)?;
-
-            let existing_tiling_label_ids = existing_tiling_labels.iter()
-                .map(|tiling_label| tiling_label.id)
-                .collect::<Vec<i32>>();
-            TilingLabel::delete_batch(existing_tiling_label_ids, conn)?;
-
-            TilingLabelPost::insert_batch(
-                label_ids
-                    .into_iter()
-                    .map(|label_id| TilingLabelPost { label_id, tiling_id: tiling.id })
-                    .collect(),
-                conn,
-            )?;
+            Ok(FullTiling { tiling, labels })
         }
-
-        let labels = TilingLabel::belonging_to(&tiling)
-            .inner_join(label::table)
-            .select(label::all_columns)
-            .load::<Label>(conn)?;
-
-        Ok(FullTiling { tiling, labels })
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use self::internal::*;

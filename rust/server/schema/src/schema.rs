@@ -41,6 +41,7 @@ table! {
         source_id -> Int4,
         sink_id -> Int4,
         is_locked -> Bool,
+        parity -> Bool,
     }
 }
 
@@ -48,7 +49,6 @@ table! {
     atlasvertex (id) {
         id -> Int4,
         atlas_id -> Int4,
-        title -> Nullable<Varchar>,
         is_locked -> Bool,
     }
 }

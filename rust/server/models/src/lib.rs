@@ -1,17 +1,25 @@
+#![feature(macro_attributes_in_derive_output)]
 #![recursion_limit="1024"]
 
-#[macro_use] extern crate diesel;
-#[macro_use] extern crate itertools;
-#[macro_use] extern crate mashup;
+#[cfg(not(target_arch = "wasm32"))]
+#[macro_use]
+extern crate diesel;
 
-mod api_key;
+#[cfg(not(target_arch = "wasm32"))]
+#[macro_use]
+extern crate itertools;
+
+#[macro_use]
+extern crate paste;
+
+mod account;
 mod atlas;
 mod polygon;
 mod search;
 mod tables;
 mod tiling;
 
-pub use self::api_key::*;
+pub use self::account::*;
 pub use self::atlas::*;
 pub use self::polygon::*;
 pub use self::search::*;

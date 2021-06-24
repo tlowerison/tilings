@@ -2,9 +2,9 @@ use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
 use float_cmp::ApproxEq;
 use geometry::{Euclid, Point, ORIGIN, Transformable};
 use itertools::{Itertools, izip};
+use models;
 use std::{collections::HashSet, f64::consts::{PI, TAU}, iter};
 use tile::ProtoTile;
-use tiling_config;
 
 #[derive(Clone)]
 pub struct ProtoNeighbor {
@@ -18,7 +18,7 @@ pub struct ProtoNeighbor {
 pub struct ProtoVertexStar {
     pub index: usize,
     pub proto_tiles: Vec<ProtoTile>,
-    pub proto_neighbors: Vec<ProtoNeighbor>, // proto_neighbors[i].transform.translate == proto_components[i].proto_tile.points[i+1]
+    pub proto_neighbors: Vec<ProtoNeighbor>, // proto_neighbors[i].transform.translate == proto_edges[i].proto_tile.points[i+1]
 }
 
 #[derive(Clone)]
@@ -43,39 +43,55 @@ impl ProtoVertexStar {
     }
 }
 
-pub struct Tiling {
+pub struct Atlas {
     pub proto_tiles: Vec<ProtoTile>,
     pub proto_vertex_stars: Vec<ProtoVertexStar>,
 }
 
-impl Tiling {
-    pub fn new(config: tiling_config::Tiling) -> Result<Tiling, String> {
-        let mut all_proto_tiles: Vec<Vec<ProtoTile>> = Vec::with_capacity(config.0.len());
-        for (i, vertex) in config.0.iter().enumerate() {
-            let mut proto_tiles: Vec<ProtoTile> = Vec::with_capacity(vertex.components.len());
+impl Atlas {
+    pub fn new(config: models::FullAtlas) -> Result<Atlas, String> {
+        // collect all proto tiles belonging to all vertices prior to
+        // building vertices to be able to reference other vertices
+        // while building their neighbors
+        let mut all_proto_tiles: Vec<Vec<ProtoTile>> = Vec::with_capacity(config.vertices.len());
+        for (i, vertex) in config.vertices.iter().enumerate() {
+            let mut proto_tiles: Vec<ProtoTile> = Vec::with_capacity(vertex.edges.len());
             let mut rotation = 0.;
-            if vertex.components.len() != vertex.neighbors.len() {
-                return Err(String::from(format!("vertex {} has mismatched # of components ({}) and neighbors ({})", i, vertex.components.len(), vertex.neighbors.len())))
-            }
-            for (j, component) in vertex.components.iter().enumerate() {
-                if component.0.points.len() < 2 {
-                    return Err(String::from(format!("vertex {}, component {} - expected >= 2 points but received {} points", i, j, component.0.points.len())))
-                }
+            for (j, edge) in vertex.edges.iter().enumerate() {
+                let base_proto_tile = config.polygons
+                    .get(edge.polygon_index)
+                    .map(ProtoTile::from)
+                    .ok_or(String::from(format!(
+                        "polygon {} is missing in vertex {} spec",
+                        edge.polygon_index,
+                        j,
+                    )))?;
 
-                let point = match component.0.points.get(component.1) {
+                let point = match base_proto_tile.points.get(edge.point_index) {
                     Some(point) => point,
-                    None => return Err(String::from(format!("vertex {}, component {} has missing point for index {} - ProtoTile == {}", i, j, component.1, component.0))),
+                    None => return Err(String::from(format!(
+                        "vertex {}, edge {} has missing point for index {} - ProtoTile == {}",
+                        i,
+                        j,
+                        edge.point_index,
+                        base_proto_tile,
+                    ))),
                 };
 
-                let mut proto_tile = component.0.transform(&Euclid::Translate(point.neg().values()));
+                let mut proto_tile = base_proto_tile.transform(&Euclid::Translate(point.neg().values()));
 
-                let next_point_index = component.1;
-                let next_point = match proto_tile.points.get((next_point_index + 1) % component.0.size()) {
+                let next_point = match proto_tile.points.get((edge.point_index + 1) % base_proto_tile.size()) {
                     Some(point) => point.clone(),
-                    None => return Err(String::from(format!("vertex {}, component {} has missing point for index {} - ProtoTile == {}", i, j, (component.1 + 1) % component.0.size(), component.0))),
+                    None => return Err(String::from(format!(
+                        "vertex {}, edge {} has missing point for index {} - ProtoTile == {}",
+                        i,
+                        j,
+                        (edge.point_index + 1) % base_proto_tile.size(),
+                        base_proto_tile,
+                    ))),
                 };
 
-                let angle = proto_tile.angle(next_point_index);
+                let angle = proto_tile.angle(edge.point_index);
 
                 proto_tile = proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
                 proto_tile.reorient(&ORIGIN);
@@ -89,23 +105,26 @@ impl Tiling {
             all_proto_tiles.extend(iter::once(proto_tiles));
         }
 
-        let mut proto_vertex_stars: Vec<ProtoVertexStar> = Vec::with_capacity(config.0.len());
-        for (i,(vertex, proto_tiles)) in izip!(config.0.iter(), all_proto_tiles.iter()).enumerate() {
-            let mut proto_neighbors: Vec<ProtoNeighbor> = Vec::with_capacity(vertex.components.len());
-            for (j, (neighbor, proto_tile)) in izip!(vertex.neighbors.iter(), proto_tiles.iter()).enumerate() {
+        let mut proto_vertex_stars: Vec<ProtoVertexStar> = Vec::with_capacity(config.vertices.len());
+        for (i, (vertex, proto_tiles)) in izip!(config.vertices.iter(), all_proto_tiles.iter()).enumerate() {
+            let mut proto_neighbors: Vec<ProtoNeighbor> = Vec::with_capacity(vertex.edges.len());
+            for (edge, proto_tile) in izip!(vertex.edges.iter(), proto_tiles.iter()) {
                 let edge_point = proto_tile.points.get(1).unwrap();
-                let neighbor_edge_point = match all_proto_tiles.get(neighbor.0) {
-                    None => return Err(String::from(format!("vertex {}, neighbor {} - no neighbor vertex found for index {}", i, j, neighbor.0))),
-                    Some(neighbor_vs) => match neighbor_vs.get(neighbor.1) {
-                        None => return Err(String::from(format!("vertex {}, neighbor {} - return edge {} is out of bounds for neighboring vertex star with size {}", i, j, neighbor.1, neighbor_vs.len()))),
-                        Some(neighbor_proto_tile) => neighbor_proto_tile.points.get(1).unwrap(),
-                    },
-                };
+
+                let neighbor_edge_point = all_proto_tiles
+                    .get(edge.neighbor_index)
+                    .ok_or(String::from("Invalid neighbor index in edge"))?
+                    .get(edge.point_index)
+                    .ok_or(String::from("Invalid point index in edge"))?
+                    .points
+                    .get(1)
+                    .unwrap();
+
                 proto_neighbors.extend(vec![ProtoNeighbor {
-                    proto_vertex_star_index: neighbor.0,
-                    neighbor_index: neighbor.1,
+                    proto_vertex_star_index: edge.neighbor_index,
+                    neighbor_index: edge.polygon_index,
                     transform: VertexStarTransform {
-                        parity: neighbor.2,
+                        parity: edge.parity,
                         translate: edge_point.values(),
                         rotate: rad(edge_point.neg().arg() - neighbor_edge_point.arg()),
                     },
@@ -121,15 +140,15 @@ impl Tiling {
         }
 
         let mut proto_tiles: HashSet<ProtoTile> = HashSet::default();
-        for vertex in config.0.iter() {
-            for component in vertex.components.iter() {
-                proto_tiles.insert(component.0.clone());
+        for vertex_proto_tiles in all_proto_tiles.into_iter() {
+            for proto_tile in vertex_proto_tiles.into_iter() {
+                proto_tiles.insert(proto_tile);
             }
         }
         let mut proto_tiles = proto_tiles.into_iter().collect_vec();
         proto_tiles.shrink_to_fit();
 
-        Ok(Tiling {
+        Ok(Atlas {
             proto_vertex_stars,
             proto_tiles,
         })
@@ -150,7 +169,7 @@ impl std::fmt::Display for ProtoNeighbor {
 
 impl std::fmt::Display for ProtoVertexStar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match write!(f, "components:\n") {
+        match write!(f, "edges:\n") {
             Ok(_) => {}
             Err(e) => return Err(e),
         }
@@ -178,9 +197,9 @@ impl std::fmt::Display for ProtoVertexStar {
     }
 }
 
-impl std::fmt::Display for Tiling {
+impl std::fmt::Display for Atlas {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let title = format!("Tiling");
+        let title = format!("Atlas");
         match write!(f, "{}\n{}\n", title, "-".repeat(title.len())) {
             Ok(_) => {}
             Err(e) => return Err(e),

@@ -1,17 +1,16 @@
 FROM rust:1.52.1 AS build-rust
 
-  RUN rustup target add wasm32-unknown-unknown
   RUN [ -z "$(which wasm-pack)" ] && cargo install wasm-pack
 
   WORKDIR /app
 
   RUN mkdir -p www
   RUN mkdir -p www/pkg
-  COPY rust/client rust/client
+  COPY rust rust
 
-  WORKDIR /app/rust/client/wasm
+  WORKDIR /app/rust/client
 
-  RUN wasm-pack build --out-dir ../../../www/pkg --release
+  RUN wasm-pack build --out-dir ../../www/pkg --release
 
 FROM node:12.20.2 as build-js
 

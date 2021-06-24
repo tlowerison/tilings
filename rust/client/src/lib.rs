@@ -1,12 +1,19 @@
 extern crate console_error_panic_hook;
 extern crate serde_json;
-use crate::coloring::Coloring;
+
+mod coloring;
+mod routes;
+
+pub use self::routes::*;
+
+use atlas::{Atlas, Patch, TileDiff};
+use coloring::Coloring;
 use geometry::*;
+use models;
 use plotters::prelude::*;
 use plotters_canvas::CanvasBackend;
 use std::{cell::RefCell, collections::HashMap, panic, sync::Mutex};
 use tile::Tile;
-use tiling::{self, Patch, TileDiff};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
@@ -14,7 +21,7 @@ struct Global {
     coloring: Coloring,
     cur_tile_centroid: Point,
     patch: RefCell<Patch>,
-    tiling_name: String,
+    tiling_id: i32,
 }
 
 static mut GLOBAL: Option<Mutex<Global>> = None;
@@ -25,50 +32,42 @@ const TO_CANVAS_AFFINE: Affine = Affine([[SCALE, 0.], [0., -SCALE]], [CENTER.0, 
 const FROM_CANVAS_AFFINE: Affine = Affine([[1./SCALE, 0.], [0., -1./SCALE]], [-CENTER.0 / SCALE, CENTER.1/SCALE]);
 
 #[wasm_bindgen]
-pub fn get_tilings() -> JsValue {
+#[allow(non_snake_case)]
+pub async fn setTiling(canvas: HtmlCanvasElement, atlas_id: i32) -> Result<JsValue, JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
-    match &tiling::ser_tilings() {
-        Some(ser_tilings) => {
-            match serde_json::to_string(&ser_tilings) {
-                Ok(str) => JsValue::from_str(&str),
-                Err(_) => JsValue::NULL,
-            }
-        },
-        None => {
-            tiling::init();
-            get_tilings()
-        }
-    }
-}
 
-#[wasm_bindgen]
-pub fn set_tiling(canvas: HtmlCanvasElement, tiling_name: JsValue) -> JsValue {
-    panic::set_hook(Box::new(console_error_panic_hook::hook));
-    let tiling_name = tiling_name.as_string().unwrap();
+    let atlas = get_atlas(atlas_id).await?;
+
     unsafe {
         match &mut GLOBAL {
             None => {
-                let (mut patch, coloring, cur_tile_centroid) = match tiling_from_name(&tiling_name) { Ok(result) => result, Err(e) => return e };
-                match draw(canvas, &coloring, patch.drain_tile_diffs()) { Ok(_) => {}, Err(e) => return e };
-                GLOBAL = Some(Mutex::new(Global { coloring, cur_tile_centroid, tiling_name, patch: RefCell::new(patch) }));
+                let (mut patch, coloring, cur_tile_centroid) = patch_from_atlas(atlas)?;
+                draw(canvas, &coloring, patch.drain_tile_diffs())?;
+                GLOBAL = Some(Mutex::new(Global {
+                    coloring,
+                    cur_tile_centroid,
+                    tiling_id: atlas_id,
+                    patch: RefCell::new(patch),
+                }));
             },
             Some(mutex) => {
                 let mut global = mutex.lock().unwrap();
-                if global.tiling_name != tiling_name {
-                    let (patch, coloring, cur_tile_centroid) = match tiling_from_name(&tiling_name) { Ok(result) => result, Err(e) => return e };
+                if global.tiling_id != atlas_id {
+                    let (patch, coloring, cur_tile_centroid) = patch_from_atlas(atlas)?;
                     global.coloring = coloring;
                     global.cur_tile_centroid = cur_tile_centroid;
                     global.patch = RefCell::new(patch);
-                    global.tiling_name = tiling_name;
+                    global.tiling_id = atlas_id;
                 }
             },
         }
-        JsValue::TRUE
+        Ok(JsValue::TRUE)
     }
 }
 
 #[wasm_bindgen]
-pub fn handle_event(canvas: HtmlCanvasElement, x: f64, y: f64) -> JsValue {
+#[allow(non_snake_case)]
+pub fn handleEvent(canvas: HtmlCanvasElement, x: f64, y: f64) -> JsValue {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
     unsafe {
         match &mut GLOBAL {
@@ -90,10 +89,10 @@ pub fn handle_event(canvas: HtmlCanvasElement, x: f64, y: f64) -> JsValue {
     }
 }
 
-fn tiling_from_name(tiling_name: &String) -> Result<(Patch, Coloring, Point), JsValue> {
-    let tiling = match tiling::get_tiling(tiling_name) { Ok(t) => t, Err(e) => return Err(JsValue::from_str(&e)) };
-    let (patch, cur_tile_centroid) = match Patch::new(tiling) { Ok(pair) => pair, Err(e) => return Err(JsValue::from_str(&e)) };
-    let coloring = Coloring::new(&patch.tiling);
+fn patch_from_atlas(db_atlas: models::FullAtlas) -> Result<(Patch, Coloring, Point), JsValue> {
+    let atlas = Atlas::new(db_atlas).map_err(|e| JsValue::from_str(&e))?;
+    let (patch, cur_tile_centroid) = Patch::new(atlas).map_err(|e| JsValue::from_str(&e))?;
+    let coloring = Coloring::new(&patch.atlas);
     Ok((patch, coloring, cur_tile_centroid))
 }
 

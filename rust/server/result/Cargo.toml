@@ -4,8 +4,8 @@ version = "0.1.0"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
-[dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 diesel = { version = "1.4.4", features = ["postgres", "r2d2"] }
-mashup = "0.1"
+paste = "1.0.5"
 r2d2_redis = "0.14.0"
 rocket = { version = "0.5.0-rc.1", features = ["json", "secrets"] }

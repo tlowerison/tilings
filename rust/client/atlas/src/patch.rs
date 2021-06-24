@@ -1,4 +1,4 @@
-use crate::tiling::{ProtoNeighbor, ProtoVertexStar, Tiling};
+use crate::atlas::{ProtoNeighbor, ProtoVertexStar, Atlas};
 use common::*;
 use geometry::{Affine, Euclid, Point, Transform, Transformable};
 use std::collections::HashMap;
@@ -23,8 +23,8 @@ pub enum VertexStarErr {
 }
 
 impl VertexStar {
-    pub fn new(tiling: &Tiling, point: Point, proto_vertex_star_index: usize, parity: bool, rotation: f64) -> VertexStar {
-        let proto_vertex_star = tiling.proto_vertex_stars.get(proto_vertex_star_index).unwrap();
+    pub fn new(atlas: &Atlas, point: Point, proto_vertex_star_index: usize, parity: bool, rotation: f64) -> VertexStar {
+        let proto_vertex_star = atlas.proto_vertex_stars.get(proto_vertex_star_index).unwrap();
         if proto_vertex_star_index == 0 {
             println!("{} {} {} {}", point, proto_vertex_star_index, parity, fmt_float(rotation / TAU * 360., 2));
             println!("{}", proto_vertex_star);
@@ -70,10 +70,10 @@ impl VertexStar {
 
     // get_neighbor_vertex_star optionally returns a VertexStar placed where this VertexStar's neighbor[index] specifies,
     // relative to this VertexStar's point, rotation and parity.
-    pub fn get_neighbor_vertex_star(&self, tiling: &Tiling, index: usize) -> Option<VertexStar> {
-        let proto_vertex_star = self.get_proto_vertex_star(tiling).unwrap();
+    pub fn get_neighbor_vertex_star(&self, atlas: &Atlas, index: usize) -> Option<VertexStar> {
+        let proto_vertex_star = self.get_proto_vertex_star(atlas).unwrap();
         let proto_neighbor = proto_vertex_star.proto_neighbors.get(index).unwrap();
-        let neighbor_proto_vertex_star = tiling.proto_vertex_stars.get(proto_neighbor.proto_vertex_star_index).unwrap();
+        let neighbor_proto_vertex_star = atlas.proto_vertex_stars.get(proto_neighbor.proto_vertex_star_index).unwrap();
 
         let reference_frame = VertexStar::reference_frame(self.parity, self.rotation);
         let neighbor_point_in_self_ref = Point::new(proto_neighbor.transform.translate).transform(&reference_frame);
@@ -92,7 +92,7 @@ impl VertexStar {
         let rotation = neighbor_first_edge_point_transformed.arg();
 
         Some(VertexStar::new(
-            tiling,
+            atlas,
             &self.point + &neighbor_point_in_self_ref,
             proto_neighbor.proto_vertex_star_index,
             parity,
@@ -100,14 +100,14 @@ impl VertexStar {
         ))
     }
 
-    // get_proto_vertex_star optionally returns this VertexStar's referenced ProtoVertexStar given a tiling to index into.
-    pub fn get_proto_vertex_star<'a>(&self, tiling: &'a Tiling) -> Option<&'a ProtoVertexStar> {
-        tiling.proto_vertex_stars.get(self.proto_vertex_star_index)
+    // get_proto_vertex_star optionally returns this VertexStar's referenced ProtoVertexStar given a atlas to index into.
+    pub fn get_proto_vertex_star<'a>(&self, atlas: &'a Atlas) -> Option<&'a ProtoVertexStar> {
+        atlas.proto_vertex_stars.get(self.proto_vertex_star_index)
     }
 
     // get_tile creates the Tile situated clockwise of the given point in this VertexStar's link
-    pub fn get_tile(&self, tiling: &Tiling, neighbor_point: &Point) -> Option<Tile> {
-        let proto_vertex_star = match self.get_proto_vertex_star(tiling) { None => return None, Some(pvs) => pvs };
+    pub fn get_tile(&self, atlas: &Atlas, neighbor_point: &Point) -> Option<Tile> {
+        let proto_vertex_star = match self.get_proto_vertex_star(atlas) { None => return None, Some(pvs) => pvs };
         let mut proto_tile_index = match self.link_map.get(neighbor_point) { None => return None, Some(i) => *i };
         if !self.parity {
             proto_tile_index = (proto_tile_index + self.size() - 1) % self.size();
@@ -134,7 +134,7 @@ pub enum TileDiff {
 }
 
 pub struct Patch {
-    pub tiling: Tiling,
+    pub atlas: Atlas,
     pub tiles: HashMap<Point, Tile>,
     pub tile_diffs: HashMap<Tile, TileDiff>,
     pub vertex_stars: HashMap<Point, VertexStar>,
@@ -147,11 +147,11 @@ pub enum PathErr {
 
 impl Patch {
     // new creates a new Patch and inserts a single VertexStar and its first Tile
-    pub fn new(tiling: Tiling) -> Result<(Patch, Point), String> {
+    pub fn new(atlas: Atlas) -> Result<(Patch, Point), String> {
         let mut vertex_stars: HashMap<Point, VertexStar> = HashMap::default();
 
-        let vertex_star_0 = VertexStar::new(&tiling, Point(0., 0.), 0, false, 0.);
-        let vertex_star_1 = vertex_star_0.get_neighbor_vertex_star(&tiling, 0).unwrap();
+        let vertex_star_0 = VertexStar::new(&atlas, Point(0., 0.), 0, false, 0.);
+        let vertex_star_1 = vertex_star_0.get_neighbor_vertex_star(&atlas, 0).unwrap();
         let vertex_point_0 = vertex_star_0.point.clone();
         let vertex_point_1 = vertex_star_1.point.clone();
 
@@ -159,7 +159,7 @@ impl Patch {
         vertex_stars.insert(vertex_point_1, vertex_star_1);
 
         let mut patch = Patch {
-            tiling,
+            atlas,
             vertex_stars,
             tile_diffs: HashMap::default(),
             tiles: HashMap::default(),
@@ -196,7 +196,7 @@ impl Patch {
     // edge drawn from start to stop.
     fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point)) -> Result<Point, String> {
         let start_vertex_star = match self.vertex_stars.get(&start) { Some(vs) => vs, None => return Err(String::from(format!("no VertexStar found at start {}\n{}", start, self))) };
-        let tile = match start_vertex_star.get_tile(&self.tiling, &stop) { Some(t) => t, None => return Err(String::from(format!("stop {} is not in the link of start {}\n{}", stop, start, self))) };
+        let tile = match start_vertex_star.get_tile(&self.atlas, &stop) { Some(t) => t, None => return Err(String::from(format!("stop {} is not in the link of start {}\n{}", stop, start, self))) };
         let tile_size = tile.size();
 
         match self.tiles.insert(tile.centroid.clone(), tile.clone()) { None => self.tile_diffs.insert(tile.clone(), TileDiff::Added), Some(_) => return Ok(tile.centroid.clone()) };
@@ -215,7 +215,7 @@ impl Patch {
                 reverse = middle;
                 middle = vs.point.clone();
             } else {
-                let vs = match middle_vertex_star.get_neighbor_vertex_star(&self.tiling, forward_index) { Some(vs) => vs, None => return Err(String::from(format!("unable to create neighbor VertexStar of VertexStar {} for neighbor index {} at point {}\n{}", middle, forward_index, forward, self))) };
+                let vs = match middle_vertex_star.get_neighbor_vertex_star(&self.atlas, forward_index) { Some(vs) => vs, None => return Err(String::from(format!("unable to create neighbor VertexStar of VertexStar {} for neighbor index {} at point {}\n{}", middle, forward_index, forward, self))) };
                 reverse = middle;
                 middle = self.vertex_stars.entry(forward.clone()).or_insert({ new_link_points.push((forward_index, forward)); vs }).point.clone();
             }
@@ -277,7 +277,7 @@ impl std::fmt::Display for PathErr {
 mod tests {
     use super::*;
     use tile::{ProtoTile, regular_polygon, star_polygon};
-    use tiling_config::{Component, Neighbor, Vertex};
+    use atlas_config::{Component, Neighbor, Vertex};
     use geometry::Point;
     use std::f64::consts::{PI, TAU};
 
@@ -285,10 +285,10 @@ mod tests {
     const X: Point = Point(1., 0.);
     const Y: Point = Point(0., 1.);
 
-    fn get_test_tiling_3_3_3_3_3_3() -> Tiling {
+    fn get_test_atlas_3_3_3_3_3_3() -> Atlas {
         let triangle = regular_polygon(1., 3);
-        Tiling::new(
-            tiling_config::Tiling(vec![Vertex {
+        Atlas::new(
+            atlas_config::Atlas(vec![Vertex {
                 components: vec![
                     Component(triangle.clone(), 0),
                     Component(triangle.clone(), 0),
@@ -306,13 +306,13 @@ mod tests {
                     Neighbor(0, 2, false),
                 ],
             }]),
-        ).expect("couldn't create tiling")
+        ).expect("couldn't create atlas")
     }
 
-    fn get_test_tiling_4_4_4_4() -> Tiling {
+    fn get_test_atlas_4_4_4_4() -> Atlas {
         let square = regular_polygon(1., 4);
-        Tiling::new(
-            tiling_config::Tiling(vec![Vertex {
+        Atlas::new(
+            atlas_config::Atlas(vec![Vertex {
                 components: vec![
                     Component(square.clone(), 0),
                     Component(square.clone(), 1),
@@ -326,13 +326,13 @@ mod tests {
                     Neighbor(0, 1, false),
                 ],
             }]),
-        ).expect("couldn't create tiling")
+        ).expect("couldn't create atlas")
     }
 
-    fn get_test_tiling_6_6_6() -> Tiling {
+    fn get_test_atlas_6_6_6() -> Atlas {
         let hexagon = regular_polygon(1., 6);
-        Tiling::new(
-            tiling_config::Tiling(vec![Vertex {
+        Atlas::new(
+            atlas_config::Atlas(vec![Vertex {
                 components: vec![
                     Component(hexagon.clone(), 0),
                     Component(hexagon.clone(), 0),
@@ -344,14 +344,14 @@ mod tests {
                     Neighbor(0, 0, false),
                 ],
             }]),
-        ).expect("couldn't create tiling")
+        ).expect("couldn't create atlas")
     }
 
-    fn get_test_tiling_3_12_12() -> Tiling {
+    fn get_test_atlas_3_12_12() -> Atlas {
         let triangle = regular_polygon(1., 3);
         let dodecagon = regular_polygon(1., 12);
-        Tiling::new(
-            tiling_config::Tiling(vec![Vertex {
+        Atlas::new(
+            atlas_config::Atlas(vec![Vertex {
                 components: vec![
                     Component(triangle.clone(), 0),
                     Component(dodecagon.clone(), 0),
@@ -363,15 +363,15 @@ mod tests {
                     Neighbor(0, 2, false),
                 ],
             }]),
-        ).expect("couldn't create tiling")
+        ).expect("couldn't create atlas")
     }
 
-    fn get_test_tiling_4_6_12() -> Tiling {
+    fn get_test_atlas_4_6_12() -> Atlas {
         let square = regular_polygon(1., 4);
         let hexagon = regular_polygon(1., 6);
         let dodecagon = regular_polygon(1., 12);
-        Tiling::new(
-            tiling_config::Tiling(vec![Vertex {
+        Atlas::new(
+            atlas_config::Atlas(vec![Vertex {
                 components: vec![
                     Component(dodecagon.clone(), 0),
                     Component(hexagon.clone(), 0),
@@ -383,16 +383,16 @@ mod tests {
                     Neighbor(0, 2, true),
                 ],
             }]),
-        ).expect("couldn't create tiling")
+        ).expect("couldn't create atlas")
     }
 
-    fn get_test_tiling_4_6apio6_6aapio2_6apio6() -> Tiling {
+    fn get_test_atlas_4_6apio6_6aapio2_6apio6() -> Atlas {
         let square = regular_polygon(1., 4);
         let star_1 = star_polygon(1., 6, PI / 6.);
         let star_2 = star_polygon(1., 6, PI / 2.);
 
-        Tiling::new(
-            tiling_config::Tiling(vec![
+        Atlas::new(
+            atlas_config::Atlas(vec![
                 Vertex {
                     components: vec![
                         Component(star_2.clone(), 0),
@@ -428,17 +428,17 @@ mod tests {
                     ],
                 }
             ]),
-        ).expect("couldn't create tiling")
+        ).expect("couldn't create atlas")
     }
 
     #[test]
-    fn test_tiling_6_4apio6_6_4apio6() {
+    fn test_atlas_6_4apio6_6_4apio6() {
         let star = star_polygon(1., 4, PI / 6.);
         let hexagon_1 = regular_polygon(1., 6);
         let hexagon_2 = star_polygon(1., 6, 2. * PI / 3.);
 
-        let tiling = Tiling::new(
-            tiling_config::Tiling(vec![
+        let atlas = Atlas::new(
+            atlas_config::Atlas(vec![
                 Vertex {
                     components: vec![
                         Component(star.clone(), 0),
@@ -474,9 +474,9 @@ mod tests {
                     ],
                 },
             ]),
-        ).expect("couldn't create tiling");
+        ).expect("couldn't create atlas");
 
-        let _patch = match Patch::new(tiling) {
+        let _patch = match Patch::new(atlas) {
             Ok(_) => {},
             Err(e) => {
                 println!("{}", e);
@@ -485,14 +485,14 @@ mod tests {
         };
     }
 
-    // TODO: add 4_6apio6_6aapio2_6apio6 to the list of all test tilings
-    fn get_all_test_tilings() -> [Tiling; 5] {
+    // TODO: add 4_6apio6_6aapio2_6apio6 to the list of all test atlases
+    fn get_all_test_atlases() -> [Atlas; 5] {
         [
-            get_test_tiling_4_4_4_4(),
-            get_test_tiling_3_3_3_3_3_3(),
-            get_test_tiling_6_6_6(),
-            get_test_tiling_3_12_12(),
-            get_test_tiling_4_6_12(),
+            get_test_atlas_4_4_4_4(),
+            get_test_atlas_3_3_3_3_3_3(),
+            get_test_atlas_6_6_6(),
+            get_test_atlas_3_12_12(),
+            get_test_atlas_4_6_12(),
         ]
     }
 
@@ -500,12 +500,12 @@ mod tests {
     // by link refers to asserting that all of a vertex star's neighbors (i.e. the vertex star's link) are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_link() {
         let [
-            tiling_4_4_4_4,
-            tiling_3_3_3_3_3_3,
-            tiling_6_6_6,
-            tiling_3_12_12,
-            tiling_4_6_12,
-        ] = get_all_test_tilings();
+            atlas_4_4_4_4,
+            atlas_3_3_3_3_3_3,
+            atlas_6_6_6,
+            atlas_3_12_12,
+            atlas_4_6_12,
+        ] = get_all_test_atlases();
 
         for rotation in (0..8).map(|i| rad((i as f64) * TAU / 8.)) {
             println!("rotation: {}", fmt_float(rotation / TAU * 360., 2));
@@ -513,7 +513,7 @@ mod tests {
             let rotate = Euclid::Rotate(rotation);
 
             let assert_vertex_star_neighbor = |
-                tiling: &Tiling,
+                atlas: &Atlas,
                 vertex_star: &VertexStar,
                 neighbor_index: usize,
                 expected_point: Point,
@@ -521,49 +521,49 @@ mod tests {
                 expected_rotation: f64,
             | {
                 println!("input: {} {} | expected: {} {} {}π", vertex_star.point, neighbor_index, expected_point.transform(&rotate), expected_parity, fmt_float(rad(expected_rotation + rotation) / PI, 2));
-                let neighbor_vertex_star = vertex_star.get_neighbor_vertex_star(tiling, neighbor_index).unwrap();
+                let neighbor_vertex_star = vertex_star.get_neighbor_vertex_star(atlas, neighbor_index).unwrap();
                 assert_eq!(expected_point.transform(&rotate), neighbor_vertex_star.point);
                 assert_eq!(expected_parity, neighbor_vertex_star.parity);
                 approx_eq!(f64, rad(expected_rotation + rotation), neighbor_vertex_star.rotation);
             };
 
-            println!("Tiling 4.4.4.4");
-            let vertex_star = VertexStar::new(&tiling_4_4_4_4, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 3, X.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
+            println!("Atlas 4.4.4.4");
+            let vertex_star = VertexStar::new(&atlas_4_4_4_4, Point(0.,0.), 0, false, rotation);
+            assert_vertex_star_neighbor(&atlas_4_4_4_4, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_4_4_4_4, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_4_4_4_4, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_4_4_4_4, &vertex_star, 3, X.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
             println!();
 
-            println!("Tiling 3.3.3.3.3.3");
-            let vertex_star = VertexStar::new(&tiling_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 3, X.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 4, X.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
-            assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 5, X.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
+            println!("Atlas 3.3.3.3.3.3");
+            let vertex_star = VertexStar::new(&atlas_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
+            assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 3, X.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 4, X.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
+            assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 5, X.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
             println!();
 
-            println!("Tiling 6.6.6");
-            let vertex_star = VertexStar::new(&tiling_6_6_6, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
-            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
-            assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
+            println!("Atlas 6.6.6");
+            let vertex_star = VertexStar::new(&atlas_6_6_6, Point(0.,0.), 0, false, rotation);
+            assert_vertex_star_neighbor(&atlas_6_6_6, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&atlas_6_6_6, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
+            assert_vertex_star_neighbor(&atlas_6_6_6, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
             println!();
 
-            println!("Tiling 3.12.12");
-            let vertex_star = VertexStar::new(&tiling_3_12_12, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, X, false, to_rad(120.));
-            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
-            assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
+            println!("Atlas 3.12.12");
+            let vertex_star = VertexStar::new(&atlas_3_12_12, Point(0.,0.), 0, false, rotation);
+            assert_vertex_star_neighbor(&atlas_3_12_12, &vertex_star, 0, X, false, to_rad(120.));
+            assert_vertex_star_neighbor(&atlas_3_12_12, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
+            assert_vertex_star_neighbor(&atlas_3_12_12, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
             println!();
 
-            println!("Tiling 4.6.12");
-            let vertex_star = VertexStar::new(&tiling_4_6_12, Point(0.,0.), 0, false, rotation);
-            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 0, X, true, to_rad(180.));
-            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(150.))), true, to_rad(120.));
-            assert_vertex_star_neighbor(&tiling_4_6_12, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(270.))), true, to_rad(0.));
+            println!("Atlas 4.6.12");
+            let vertex_star = VertexStar::new(&atlas_4_6_12, Point(0.,0.), 0, false, rotation);
+            assert_vertex_star_neighbor(&atlas_4_6_12, &vertex_star, 0, X, true, to_rad(180.));
+            assert_vertex_star_neighbor(&atlas_4_6_12, &vertex_star, 1, X.transform(&Euclid::Rotate(to_rad(150.))), true, to_rad(120.));
+            assert_vertex_star_neighbor(&atlas_4_6_12, &vertex_star, 2, X.transform(&Euclid::Rotate(to_rad(270.))), true, to_rad(0.));
             println!();
         }
     }
@@ -572,12 +572,12 @@ mod tests {
     // by chain refers to asserting that a sequence of vertex stars, the next accumulated as a neighbor of the previous star, are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_sequence() {
         let [
-            tiling_4_4_4_4,
-            tiling_3_3_3_3_3_3,
-            tiling_6_6_6,
-            tiling_3_12_12,
-            tiling_4_6_12,
-        ] = get_all_test_tilings();
+            atlas_4_4_4_4,
+            atlas_3_3_3_3_3_3,
+            atlas_6_6_6,
+            atlas_3_12_12,
+            atlas_4_6_12,
+        ] = get_all_test_atlases();
 
         for rotation in (0..8).map(|i| rad((i as f64) * TAU / 8.)) {
             println!("rotation: {}", fmt_float(rotation / TAU * 360., 2));
@@ -585,7 +585,7 @@ mod tests {
             let rotate = Euclid::Rotate(rotation);
 
             let assert_vertex_star_neighbor = |
-                tiling: &Tiling,
+                atlas: &Atlas,
                 vertex_star: &VertexStar,
                 neighbor_index: usize,
                 relative_expected_point: Point,
@@ -598,7 +598,7 @@ mod tests {
 
                 println!("input: {} {} | expected: {} {} {}π", vertex_star.point, neighbor_index, expected_point, expected_parity, fmt_float(expected_rotation / PI, 2));
 
-                let neighbor_vertex_star = vertex_star.get_neighbor_vertex_star(tiling, neighbor_index).unwrap();
+                let neighbor_vertex_star = vertex_star.get_neighbor_vertex_star(atlas, neighbor_index).unwrap();
 
                 assert_eq!(expected_parity, neighbor_vertex_star.parity);
                 assert_eq!(expected_point, neighbor_vertex_star.point);
@@ -607,52 +607,52 @@ mod tests {
                 neighbor_vertex_star
             };
 
-            println!("Tiling 4.4.4.4");
-            let vertex_star = VertexStar::new(&tiling_4_4_4_4, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
-            let _nvs = assert_vertex_star_neighbor(&tiling_4_4_4_4, &nvs, 3, X.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
+            println!("Atlas 4.4.4.4");
+            let vertex_star = VertexStar::new(&atlas_4_4_4_4, Point(0.,0.), 0, false, rotation);
+            let nvs = assert_vertex_star_neighbor(&atlas_4_4_4_4, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 90.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&atlas_4_4_4_4, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 90.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&atlas_4_4_4_4, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 90.))), false, 0.);
+            let _nvs = assert_vertex_star_neighbor(&atlas_4_4_4_4, &nvs, 3, X.transform(&Euclid::Rotate(to_rad(3. * 90.))), false, 0.);
             println!();
 
-            println!("Tiling 3.3.3.3.3.3");
-            let vertex_star = VertexStar::new(&tiling_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 3, X.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 4, X.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
-            let _nvs = assert_vertex_star_neighbor(&tiling_3_3_3_3_3_3, &nvs, 5, X.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
+            println!("Atlas 3.3.3.3.3.3");
+            let vertex_star = VertexStar::new(&atlas_3_3_3_3_3_3, Point(0.,0.), 0, false, rotation);
+            let nvs = assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &nvs, 3, X.transform(&Euclid::Rotate(to_rad(3. * 60.))), false, 0.);
+            let nvs = assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &nvs, 4, X.transform(&Euclid::Rotate(to_rad(4. * 60.))), false, 0.);
+            let _nvs = assert_vertex_star_neighbor(&atlas_3_3_3_3_3_3, &nvs, 5, X.transform(&Euclid::Rotate(to_rad(5. * 60.))), false, 0.);
             println!();
 
-            println!("Tiling 6.6.6");
-            let vertex_star = VertexStar::new(&tiling_6_6_6, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
-            let nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
-            let _nvs = assert_vertex_star_neighbor(&tiling_6_6_6, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
+            println!("Atlas 6.6.6");
+            let vertex_star = VertexStar::new(&atlas_6_6_6, Point(0.,0.), 0, false, rotation);
+            let nvs = assert_vertex_star_neighbor(&atlas_6_6_6, &vertex_star, 0, X.transform(&Euclid::Rotate(to_rad(0. * 120.))), false, to_rad(60.));
+            let nvs = assert_vertex_star_neighbor(&atlas_6_6_6, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(1. * 120.))), false, to_rad(60.));
+            let _nvs = assert_vertex_star_neighbor(&atlas_6_6_6, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(2. * 120.))), false, to_rad(60.));
             println!();
 
-            println!("Tiling 3.12.12");
-            let vertex_star = VertexStar::new(&tiling_3_12_12, Point(0.,0.), 0, false, rotation);
-            let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &vertex_star, 0, X, false, to_rad(120.));
-            let nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
-            let _nvs = assert_vertex_star_neighbor(&tiling_3_12_12, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
+            println!("Atlas 3.12.12");
+            let vertex_star = VertexStar::new(&atlas_3_12_12, Point(0.,0.), 0, false, rotation);
+            let nvs = assert_vertex_star_neighbor(&atlas_3_12_12, &vertex_star, 0, X, false, to_rad(120.));
+            let nvs = assert_vertex_star_neighbor(&atlas_3_12_12, &nvs, 1, X.transform(&Euclid::Rotate(to_rad(60.))), false, to_rad(240.));
+            let _nvs = assert_vertex_star_neighbor(&atlas_3_12_12, &nvs, 2, X.transform(&Euclid::Rotate(to_rad(210.))), false, to_rad(180.));
             println!();
 
-            println!("Tiling 4.6.12");
-            let vertex_star = VertexStar::new(&tiling_4_6_12, Point(0.,0.), 0, false, rotation);
+            println!("Atlas 4.6.12");
+            let vertex_star = VertexStar::new(&atlas_4_6_12, Point(0.,0.), 0, false, rotation);
 
-            let nvs = vertex_star.get_neighbor_vertex_star(&tiling_4_6_12, 0).unwrap();
+            let nvs = vertex_star.get_neighbor_vertex_star(&atlas_4_6_12, 0).unwrap();
             assert_eq!(true, nvs.parity);
             assert_eq!(X.transform(&rotate), nvs.point);
             approx_eq!(f64, rad(to_rad(180.) + rotation), nvs.rotation);
 
-            let nvs = nvs.get_neighbor_vertex_star(&tiling_4_6_12, 1).unwrap();
+            let nvs = nvs.get_neighbor_vertex_star(&atlas_4_6_12, 1).unwrap();
             assert_eq!(false, nvs.parity);
             assert_eq!((&X + &X.transform(&Euclid::Rotate(to_rad(30.)))).transform(&rotate), nvs.point);
             approx_eq!(f64, rad(to_rad(60.) + rotation), nvs.rotation);
 
-            let nvs = nvs.get_neighbor_vertex_star(&tiling_4_6_12, 2).unwrap();
+            let nvs = nvs.get_neighbor_vertex_star(&atlas_4_6_12, 2).unwrap();
             assert_eq!(true, nvs.parity);
             assert_eq!((
                 &(&X + &X.transform(&Euclid::Rotate(to_rad(30.)))) + &X.transform(&Euclid::Rotate(to_rad(-30.)))
@@ -665,63 +665,63 @@ mod tests {
 
     #[test]
     fn test_vertex_star_get_proto_vertex_star() {
-        let tiling = get_test_tiling_4_4_4_4();
+        let atlas = get_test_atlas_4_4_4_4();
 
         let proto_vertex_star_index = 0;
-        let vertex_star = VertexStar::new(&tiling, Point(0.,0.), 0, false, 0.);
-        let proto_vertex_star = vertex_star.get_proto_vertex_star(&tiling).unwrap();
+        let vertex_star = VertexStar::new(&atlas, Point(0.,0.), 0, false, 0.);
+        let proto_vertex_star = vertex_star.get_proto_vertex_star(&atlas).unwrap();
         assert_eq!(proto_vertex_star.index, proto_vertex_star_index);
     }
 
     #[test]
     fn test_vertex_star_get_tile_4_6_12() {
-        let tiling = get_test_tiling_4_6_12();
+        let atlas = get_test_atlas_4_6_12();
 
-        let vertex_star = VertexStar::new(&tiling, ORIGIN.clone(), 0, false, 0.);
+        let vertex_star = VertexStar::new(&atlas, ORIGIN.clone(), 0, false, 0.);
 
-        let tile = vertex_star.get_tile(&tiling, &X).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &X).unwrap();
         assert_eq!(4, tile.size());
         assert_eq!(Point(0.5, -0.5), tile.centroid);
 
-        let tile = vertex_star.get_tile(&tiling, &X.transform(&Euclid::Rotate(to_rad(150.)))).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &X.transform(&Euclid::Rotate(to_rad(150.)))).unwrap();
         assert_eq!(12, tile.size());
         assert_eq!(Point(0.5, 1. + 3_f64.sqrt() / 2.), tile.centroid);
 
-        let tile = vertex_star.get_tile(&tiling, &(-Y)).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &(-Y)).unwrap();
         assert_eq!(6, tile.size());
         assert_eq!(Point(- 3_f64.sqrt() / 2., -0.5), tile.centroid);
 
         // flipped vertex star
-        let vertex_star = VertexStar::new(&tiling, ORIGIN, 0, true, 0.);
+        let vertex_star = VertexStar::new(&atlas, ORIGIN, 0, true, 0.);
 
-        let tile = vertex_star.get_tile(&tiling, &X).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &X).unwrap();
         assert_eq!(12, tile.size());
         assert_eq!(Point(0.5, -(1. + 3_f64.sqrt() / 2.)), tile.centroid);
 
-        let tile = vertex_star.get_tile(&tiling, &Y).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &Y).unwrap();
         assert_eq!(4, tile.size());
         assert_eq!(Point(0.5, 0.5), tile.centroid);
 
-        let tile = vertex_star.get_tile(&tiling, &X.transform(&Euclid::Rotate(to_rad(360. - 150.)))).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &X.transform(&Euclid::Rotate(to_rad(360. - 150.)))).unwrap();
         assert_eq!(6, tile.size());
         assert_eq!(Point(- 3_f64.sqrt() / 2., 0.5), tile.centroid);
     }
 
     #[test]
     fn test_vertex_star_get_tile_6_6_6() {
-        let tiling = get_test_tiling_6_6_6();
+        let atlas = get_test_atlas_6_6_6();
 
-        let vertex_star = VertexStar::new(&tiling, X, 0, false, to_rad(60.));
+        let vertex_star = VertexStar::new(&atlas, X, 0, false, to_rad(60.));
 
-        let tile = vertex_star.get_tile(&tiling, &ORIGIN).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &ORIGIN).unwrap();
         assert_eq!(6, tile.size());
         assert_eq!(Point(0.5, 3_f64.sqrt() / 2.), tile.centroid);
 
-        let tile = vertex_star.get_tile(&tiling, &Point(1.5, 3_f64.sqrt() / 2.)).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &Point(1.5, 3_f64.sqrt() / 2.)).unwrap();
         assert_eq!(6, tile.size());
         assert_eq!(Point(2., 0.), tile.centroid);
 
-        let tile = vertex_star.get_tile(&tiling, &Point(1.5, -3_f64.sqrt() / 2.)).unwrap();
+        let tile = vertex_star.get_tile(&atlas, &Point(1.5, -3_f64.sqrt() / 2.)).unwrap();
         assert_eq!(6, tile.size());
         assert_eq!(Point(0.5, -3_f64.sqrt() / 2.), tile.centroid);
     }
@@ -734,7 +734,7 @@ mod tests {
         for degrees in (0..num_rotations).map(|i| (i as f64) * 360. / (num_rotations as f64)) {
           println!("degrees: {}", fmt_float(degrees, 2));
 
-          let tiling = get_test_tiling_4_6apio6_6aapio2_6apio6();
+          let atlas = get_test_atlas_4_6apio6_6aapio2_6apio6();
 
           let x = X.transform(&Euclid::Rotate(to_rad(degrees)));
           let y = Y.transform(&Euclid::Rotate(to_rad(degrees)));
@@ -755,11 +755,11 @@ mod tests {
           let _6aapio2_inner_radius = _6aapio2_dent_angle.cos() * hex_centroid_angle.tan() - _6aapio2_dent_angle.sin();
 
           // vertex star 0
-          let vertex_star = VertexStar::new(&tiling, ORIGIN, 0, false, to_rad(degrees));
+          let vertex_star = VertexStar::new(&atlas, ORIGIN, 0, false, to_rad(degrees));
 
           // 6*π/6
-          let tile = vertex_star.get_tile(&tiling, &x).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(1).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &x).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(1).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -770,8 +770,8 @@ mod tests {
           );
 
           // 6**π/2
-          let tile = vertex_star.get_tile(&tiling, &y).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(0).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &y).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(0).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -782,11 +782,11 @@ mod tests {
           );
 
           // vertex star 1
-          let vertex_star = VertexStar::new(&tiling, ORIGIN, 1, false, to_rad(degrees));
+          let vertex_star = VertexStar::new(&atlas, ORIGIN, 1, false, to_rad(degrees));
 
           // 6**π/2
-          let tile = vertex_star.get_tile(&tiling, &x).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(3).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &x).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(3).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -797,8 +797,8 @@ mod tests {
           );
 
           // 6*π/6
-          let tile = vertex_star.get_tile(&tiling, &x.transform(&Euclid::Rotate(to_rad(30.)))).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(0).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &x.transform(&Euclid::Rotate(to_rad(30.)))).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(0).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -809,8 +809,8 @@ mod tests {
           );
 
           // 4
-          let tile = vertex_star.get_tile(&tiling, &x.transform(&Euclid::Rotate(to_rad(30. + 90.)))).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(1).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &x.transform(&Euclid::Rotate(to_rad(30. + 90.)))).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(1).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -821,8 +821,8 @@ mod tests {
           );
 
           // 6*π/6
-          let tile = vertex_star.get_tile(&tiling, &x.transform(&Euclid::Rotate(to_rad(30. + 90. + 30.)))).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(2).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &x.transform(&Euclid::Rotate(to_rad(30. + 90. + 30.)))).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(2).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -833,11 +833,11 @@ mod tests {
           );
 
           // vertex star 2
-          let vertex_star = VertexStar::new(&tiling, ORIGIN, 2, false, to_rad(degrees));
+          let vertex_star = VertexStar::new(&atlas, ORIGIN, 2, false, to_rad(degrees));
 
           // 6*π/6
-          let tile = vertex_star.get_tile(&tiling, &x).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(1).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &x).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(1).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -848,8 +848,8 @@ mod tests {
           );
 
           // 4
-          let tile = vertex_star.get_tile(&tiling, &y).unwrap();
-          let exp_proto_tile = vertex_star.get_proto_vertex_star(&tiling).unwrap().proto_tiles.get(0).unwrap();
+          let tile = vertex_star.get_tile(&atlas, &y).unwrap();
+          let exp_proto_tile = vertex_star.get_proto_vertex_star(&atlas).unwrap().proto_tiles.get(0).unwrap();
           assert_eq!(exp_proto_tile, &ProtoTile::new(tile.points.clone()));
           assert_eq!(
               Point(
@@ -863,20 +863,20 @@ mod tests {
 
     #[test]
     fn test_vertex_star_mutual_parity() {
-        let tiling = get_test_tiling_4_4_4_4();
+        let atlas = get_test_atlas_4_4_4_4();
 
-        let vertex_star = VertexStar::new(&tiling, Point(0.,0.), 0, false, 0.);
+        let vertex_star = VertexStar::new(&atlas, Point(0.,0.), 0, false, 0.);
         assert_eq!(false, vertex_star.mutual_parity(false));
         assert_eq!(true, vertex_star.mutual_parity(true));
 
-        let vertex_star = VertexStar::new(&tiling, Point(0.,0.), 0, true, 0.);
+        let vertex_star = VertexStar::new(&atlas, Point(0.,0.), 0, true, 0.);
         assert_eq!(true, vertex_star.mutual_parity(false));
         assert_eq!(false, vertex_star.mutual_parity(true));
     }
 
     #[test]
     fn test_patch_insert_adjacent_tile_by_point() {
-        let (mut patch, mut centroid) = Patch::new(get_test_tiling_4_6_12()).unwrap();
+        let (mut patch, mut centroid) = Patch::new(get_test_atlas_4_6_12()).unwrap();
         centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(1.30, 1.30)) { Ok(p) => p, Err(e) => panic!("{}", e) };
         centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(6.53,-1.31)) { Ok(p) => p, Err(e) => panic!("{}", e) };
         centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(7.,-0.5)) { Ok(p) => p, Err(e) => panic!("{}", e) };
@@ -884,13 +884,13 @@ mod tests {
 
         let edge = (Point(1. + 3_f64.sqrt() / 2., 0.5), Point(1.5 + 3_f64.sqrt() / 2., 0.5 + 3_f64.sqrt() / 2.));
 
-        let (mut patch, _centroid) = Patch::new(get_test_tiling_4_6_12()).unwrap();
+        let (mut patch, _centroid) = Patch::new(get_test_atlas_4_6_12()).unwrap();
         patch.insert_adjacent_tile_by_edge(edge).expect("");
     }
 
     #[test]
     fn test_patch_insert_adjacent_tile_by_edge_4_6apio6_6aapio2_6apio6() {
-        let tiling = get_test_tiling_4_6apio6_6aapio2_6apio6();
+        let atlas = get_test_atlas_4_6apio6_6aapio2_6apio6();
 
         // 2π * (n - 2) / 4n = angle of inclination to n-gon centroid (when first edge extends from origin to another point on the x-axis)
         // In this case we want to find the centroid angle of the circumscribing hexagon so we use n = 6.
@@ -907,7 +907,7 @@ mod tests {
         let _6apio6_inner_radius = _6apio6_dent_angle.cos() * hex_centroid_angle.tan() - _6apio6_dent_angle.sin();
         let _6aapio2_inner_radius = _6aapio2_dent_angle.cos() * hex_centroid_angle.tan() - _6aapio2_dent_angle.sin();
 
-        let (mut patch, mut centroid) = Patch::new(tiling).unwrap();
+        let (mut patch, mut centroid) = Patch::new(atlas).unwrap();
 
         assert_eq!(
             Point(
@@ -919,7 +919,7 @@ mod tests {
 
         let tile = patch.tiles.get(&centroid).unwrap();
 
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(0).unwrap().proto_tiles.first().unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.first().unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -936,7 +936,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -958,7 +958,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -980,7 +980,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(0).unwrap().proto_tiles.get(0).unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(0).unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -1002,7 +1002,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(0).unwrap().proto_tiles.get(0).unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(0).unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -1027,7 +1027,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -1052,7 +1052,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(1).unwrap().proto_tiles.get(1).unwrap().clone();
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(1).unwrap().proto_tiles.get(1).unwrap().clone();
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&ORIGIN);
         proto_tile.reorient(&ORIGIN);
@@ -1078,7 +1078,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(1).unwrap().proto_tiles.get(0).unwrap().clone().transform(&transform);
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(1).unwrap().proto_tiles.get(0).unwrap().clone().transform(&transform);
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&start);
         proto_tile.reorient(&start);
@@ -1102,7 +1102,7 @@ mod tests {
         );
 
         let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.tiling.proto_vertex_stars.get(1).unwrap().proto_tiles.get(1).unwrap().clone().transform(&transform);
+        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(1).unwrap().proto_tiles.get(1).unwrap().clone().transform(&transform);
         let mut proto_tile = ProtoTile::new(tile.points.clone());
         exp_proto_tile.reorient(&start);
         proto_tile.reorient(&start);

@@ -14,18 +14,9 @@ use rocket::{
     serde::json::Json,
     State,
 };
-use serde::{Deserialize, Serialize};
 use std::ops::DerefMut;
 
 pub const COOKIE_LENGTH: usize = 32;
-
-#[derive(Deserialize, Serialize)]
-pub struct SignInPost {
-    email: String,
-    password: String,
-}
-
-from_data! { SignInPost }
 
 #[get("/check-email/<email>")]
 pub async fn check_email(email: String, db: DbConn) -> Result<Json<bool>> {

@@ -1,0 +1,11 @@
+[workspace]
+members = [
+  "client",
+  "server",
+]
+
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[profile.release]
+lto = true

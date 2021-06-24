@@ -12,10 +12,12 @@
     "stop:nginx:local": "brew services stop nginx; lsof -i :80 | grep nginx | sed 's/nginx *//' | sed 's/ .*//' | xargs -n1 kill -9"
   },
   "dependencies": {
+    "@material-ui/core": "^4.11.4",
+    "@material-ui/lab": "^4.0.0-alpha.58",
+    "client": "./pkg",
     "preact": "^10.5.9",
     "react": "^16.13.1",
-    "react-dom": "^16.13.1",
-    "wasm": "./pkg"
+    "react-dom": "^16.13.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.14.3",

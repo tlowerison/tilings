@@ -1,0 +1,1 @@
+ALTER TABLE AtlasVertex DROP COLUMN title;

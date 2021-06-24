@@ -1,0 +1,1 @@
+ALTER TABLE AtlasEdge DROP COLUMN parity;

@@ -1,6 +1,7 @@
 use common::{approx_eq, DEFAULT_PRECISION, fmt_float, hash_float, rad, rev_iter};
 use geometry::{reduce_transforms, Euclid, Generator, Point, Transform, Transformable};
 use itertools::{interleave, Itertools, izip};
+use models::FullPolygon;
 use std::{
     f64::consts::{PI, TAU},
     hash::{Hash, Hasher},
@@ -149,6 +150,18 @@ impl ProtoTile {
 
     pub fn size(&self) -> usize {
         self.points.len()
+    }
+}
+
+impl From<&FullPolygon> for ProtoTile {
+    fn from(full_polygon: &FullPolygon) -> ProtoTile {
+        ProtoTile::new(
+            full_polygon
+                .points
+                .iter()
+                .map(|point| Point(point.point.x, point.point.y))
+                .collect()
+        )
     }
 }
 

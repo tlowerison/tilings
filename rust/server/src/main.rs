@@ -101,8 +101,8 @@ fn rocket() -> _ {
         .manage(redis_pool)
         .mount("/", routes![
             add_label_to_polygon,
-            check_email,
             check_display_name,
+            check_email,
             create_polygon,
             delete_label,
             delete_polygon,
@@ -121,8 +121,8 @@ fn rocket() -> _ {
             sign_out,
             sign_up,
             text_search,
-            upsert_label,
             update_polygon,
+            upsert_label,
         ])
         .attach(DbConn::fairing())
 }
