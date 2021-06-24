@@ -15,6 +15,7 @@ js-sys = "0.3.51"
 lazy_static = "1.4.0"
 models = { path = "../server/models" }
 paste = "1.0.5"
+percent-encoding = "2.1.0"
 plotters = "0.3.0"
 plotters-canvas = "0.3.0"
 rand = { version = "0.6.5", features = ["wasm-bindgen"] }

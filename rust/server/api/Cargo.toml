@@ -11,6 +11,7 @@ db_conn = { path = "../db_conn" }
 lazy_static = "1.4.0"
 models = { path = "../models" }
 queries = { path = "../queries" }
+percent-encoding = "2.1.0"
 r2d2_redis = "0.14.0"
 rand = "0.8.4"
 result = { path = "../result" }

@@ -51,7 +51,7 @@ mod internal {
 
                         fn search_title(query: String, conn: &PgConnection) -> Result<Vec<Self::GroupItem>> {
                             Ok(
-                                schema::$table::table.filter(schema::$table::title.like(format!("%{}%", query)))
+                                schema::$table::table.filter(schema::$table::title.ilike(format!("%{}%", query)))
                                     .left_join(schema::[<$table label>]::table.inner_join(schema::label::table))
                                     .load::<Self::LeftDBTuple>(conn)?
                                     .into_iter()
@@ -61,7 +61,7 @@ mod internal {
                         }
 
                         fn search_labels(query: String, conn: &PgConnection) -> Result<Vec<Self::GroupItem>> {
-                            let base_ids = schema::label::table.filter(schema::label::content.like(format!("%{}%", query)))
+                            let base_ids = schema::label::table.filter(schema::label::content.ilike(format!("%{}%", query)))
                                 .inner_join(schema::[<$table label>]::table.inner_join(schema::$table::table))
                                 .select(schema::$table::id)
                                 .load::<i32>(conn)?;

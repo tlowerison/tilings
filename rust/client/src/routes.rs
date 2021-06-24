@@ -3,6 +3,7 @@ extern crate serde_json;
 
 use models;
 use paste::paste;
+use percent_encoding::{self, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
 use std::panic;
 use wasm_bindgen::prelude::*;
@@ -23,6 +24,10 @@ enum Error {
     Serde,
     Query,
     Url,
+}
+
+pub fn percent_encode(query: String) -> String {
+    percent_encoding::percent_encode(query.as_bytes(), NON_ALPHANUMERIC).to_string()
 }
 
 impl Error {
@@ -113,7 +118,7 @@ macro_rules! get_delete {
                     let url = clean_query(url(&format!(
                         $route,
                         $($param_name,)*
-                        $(match $arg_name { None => String::from(""), Some(val) => format!("{}", val) },)*
+                        $(match $arg_name { None => String::from(""), Some(val) => percent_encode(format!("{}", val)) },)*
                     )))?;
 
                     let request = Request::new_with_str_and_init(&url, &opts)
