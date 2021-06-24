@@ -400,8 +400,6 @@ crud! {
     struct Atlas {
         tiling_id: i32,
         tiling_type_id: i32,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
     },
 
     "atlasedge", atlasedge, Atlas PolygonPoint,
@@ -410,16 +408,12 @@ crud! {
         polygon_point_id: i32,
         source_id: i32,
         sink_id: i32,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
         parity: bool,
     },
 
     "atlasvertex", atlasvertex, Atlas,
     struct AtlasVertex {
         atlas_id: i32,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
     },
 
     "label", label,,
@@ -431,15 +425,11 @@ crud! {
     struct Point {
         x: f64,
         y: f64,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
     },
 
     "polygon", polygon,,
     struct Polygon {
         title: String,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
     },
 
     "polygonlabel", polygonlabel, Polygon Label,
@@ -453,8 +443,6 @@ crud! {
         polygon_id: i32,
         point_id: i32,
         sequence: i32,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
     },
 
     "role", role,,
@@ -466,8 +454,6 @@ crud! {
     struct Tiling {
         title: String,
         tiling_type_id: i32,
-        #[serde(skip_deserializing)]
-        is_locked: bool,
     },
 
     "tilinglabel", tilinglabel, Tiling Label,

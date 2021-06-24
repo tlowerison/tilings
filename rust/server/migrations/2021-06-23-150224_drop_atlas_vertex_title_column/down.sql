@@ -1,1 +1,0 @@
-ALTER TABLE AtlasVertex ADD COLUMN title  VARCHAR(40);

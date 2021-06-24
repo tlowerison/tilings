@@ -29,7 +29,6 @@ table! {
         id -> Int4,
         tiling_id -> Int4,
         tiling_type_id -> Int4,
-        is_locked -> Bool,
     }
 }
 
@@ -40,7 +39,6 @@ table! {
         polygon_point_id -> Int4,
         source_id -> Int4,
         sink_id -> Int4,
-        is_locked -> Bool,
         parity -> Bool,
     }
 }
@@ -49,7 +47,6 @@ table! {
     atlasvertex (id) {
         id -> Int4,
         atlas_id -> Int4,
-        is_locked -> Bool,
     }
 }
 
@@ -65,7 +62,6 @@ table! {
         id -> Int4,
         x -> Float8,
         y -> Float8,
-        is_locked -> Bool,
     }
 }
 
@@ -73,7 +69,6 @@ table! {
     polygon (id) {
         id -> Int4,
         title -> Varchar,
-        is_locked -> Bool,
     }
 }
 
@@ -91,7 +86,6 @@ table! {
         polygon_id -> Int4,
         point_id -> Int4,
         sequence -> Int4,
-        is_locked -> Bool,
     }
 }
 
@@ -107,7 +101,6 @@ table! {
         id -> Int4,
         title -> Varchar,
         tiling_type_id -> Int4,
-        is_locked -> Bool,
     }
 }
 

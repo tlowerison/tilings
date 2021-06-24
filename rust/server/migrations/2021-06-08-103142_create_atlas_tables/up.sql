@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS Atlas (
 CREATE TABLE IF NOT EXISTS AtlasVertex (
   id        SERIAL       PRIMARY KEY,
   atlas_id  INT          NOT NULL,
-  title     VARCHAR(40),
 
   FOREIGN KEY (atlas_id) REFERENCES Atlas (id)
 );

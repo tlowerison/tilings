@@ -183,6 +183,22 @@ mod internal {
             todo!()
         }
     }
+
+    impl FullInsertable for FullAtlasPost {
+        type Base = FullAtlas;
+
+        fn insert(self, _conn: &PgConnection) -> Result<Self::Base> {
+            todo!()
+        }
+    }
+
+    impl FullChangeset for FullAtlasPatch {
+        type Base = FullAtlas;
+
+        fn update(self, _conn: &PgConnection) -> Result<Self::Base> {
+            todo!()
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

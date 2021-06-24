@@ -13,9 +13,6 @@ pub async fn add_label_to_polygon(polygon_label_post: PolygonLabelPost, mut auth
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
         auth_account.verified(conn)?;
-        if Polygon::find(polygon_label_post.polygon_id, conn)?.is_locked {
-            auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
-        }
         queries::add_label_to_polygon(polygon_label_post, conn)
     })).await.map(Json)
 }
@@ -34,9 +31,6 @@ pub async fn delete_polygon(id: i32, mut auth_account: AuthAccount, db: DbConn) 
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
         auth_account.verified(conn)?;
-        if Polygon::find(id, conn)?.is_locked {
-            auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
-        }
         FullPolygon::delete(id, conn)
     })).await.map(Json)
 }
@@ -58,9 +52,6 @@ pub async fn update_polygon(full_polygon_patch: FullPolygonPatch, mut auth_accou
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
         auth_account.verified(conn)?;
-        if Polygon::find(full_polygon_patch.polygon.id, conn)?.is_locked {
-            auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
-        }
         full_polygon_patch.update(conn)
     })).await.map(Json)
 }

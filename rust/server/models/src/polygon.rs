@@ -210,7 +210,6 @@ mod internal {
                     sequence: i as i32,
                     polygon_id: polygon.id,
                     point_id: point.id,
-                    is_locked: false,
                 }).collect(),
                 conn,
             )?;
@@ -278,7 +277,6 @@ mod internal {
                             sequence: i as i32,
                             polygon_id: polygon.id,
                             point_id: point.id,
-                            is_locked: false,
                         }).collect(),
                         conn,
                     )?;
