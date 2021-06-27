@@ -12,9 +12,6 @@ use diesel::{
 #[cfg(not(target_arch = "wasm32"))] use std::hash::{Hash, Hasher};
 
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
-#[cfg(target_arch = "wasm32")]
 mod internal {
     #[macro_export]
     macro_rules! from_data {
@@ -39,6 +36,7 @@ mod internal {
             struct $name:ident {
                 $(
                     $(#[$field_meta:meta])*
+                    $({ $default_val:literal, $default_opt_val:literal })?
                     $field_name:ident: $field_type:ty,
                 )*
             }
@@ -46,82 +44,35 @@ mod internal {
             paste! {
                 $(
                     #[derive(Clone, Debug, Deserialize, Serialize)]
-                    #[wasm_bindgen]
                     pub struct $name {
                         pub id: i32,
                         $(
                             $(#[$field_meta])*
-                            $field_name: $field_type,
-                        )*
-                    }
-
-                    #[wasm_bindgen]
-                    impl $name {
-                        $(
-                            #[wasm_bindgen(getter)]
-                            pub fn $field_name(&self) -> $field_type {
-                                self.$field_name.clone()
-                            }
-
-                            #[wasm_bindgen(setter)]
-                            pub fn [<set_ $field_name>](&mut self, value: $field_type) {
-                                self.$field_name = value;
-                            }
+                            $(#[serde(default = $default_val)])?
+                            pub $field_name: $field_type,
                         )*
                     }
 
                     #[derive(Clone, Debug, Deserialize, Serialize)]
-                    #[wasm_bindgen]
                     $(#[$struct_meta])*
                     pub struct [<$name Post>] {
                         $(
                             $(#[$field_meta])*
-                            $field_name: $field_type,
+                            $(#[serde(default = $default_val)])?
+                            pub $field_name: $field_type,
                         )*
                     }
-
-                    #[wasm_bindgen]
-                    impl [<$name Post>] {
-                        $(
-                            #[wasm_bindgen(getter)]
-                            pub fn $field_name(&self) -> $field_type {
-                                self.$field_name.clone()
-                            }
-
-                            #[wasm_bindgen(setter)]
-                            pub fn [<set_ $field_name>](&mut self, value: $field_type) {
-                                self.$field_name = value;
-                            }
-                        )*
-                    }
-
 
                     #[derive(Clone, Debug, Deserialize, Serialize)]
-                    #[wasm_bindgen]
                     $(#[$struct_meta])*
                     pub struct [<$name Patch>] {
                         pub id: i32,
                         $(
                             $(#[$field_meta])*
-                            $field_name: Option<$field_type>,
+                            $(#[serde(default = $default_opt_val)])?
+                            pub $field_name: Option<$field_type>,
                         )*
                     }
-
-                    #[wasm_bindgen]
-                    impl [<$name Patch>] {
-                        $(
-                            #[wasm_bindgen(getter)]
-                            pub fn $field_name(&self) -> Option<$field_type> {
-                                self.$field_name.clone()
-                            }
-
-                            #[wasm_bindgen(setter)]
-                            pub fn [<set_ $field_name>](&mut self, value: Option<$field_type>) {
-                                self.$field_name = value;
-                            }
-                        )*
-                    }
-
                 )*
             }
         }
@@ -207,6 +158,7 @@ mod internal {
             struct $name:ident {
                 $(
                     $(#[$field_meta:meta])*
+                    $({ $default_val:literal, $default_opt_val:literal })?
                     $field_name:ident: $field_type:ty,
                 )*
             }
@@ -222,6 +174,7 @@ mod internal {
                         pub id: i32,
                         $(
                             $(#[$field_meta])*
+                            $(#[serde(default = $default_val)])?
                             pub $field_name: $field_type,
                         )*
                     }
@@ -298,6 +251,7 @@ mod internal {
                     pub struct [<$name Post>] {
                         $(
                             $(#[$field_meta])*
+                            $(#[serde(default = $default_val)])?
                             pub $field_name: $field_type,
                         )*
                     }
@@ -329,6 +283,7 @@ mod internal {
                         pub id: i32,
                         $(
                             $(#[$field_meta])*
+                            $(#[serde(default = $default_opt_val)])?
                             pub $field_name: Option<$field_type>,
                         )*
                     }
@@ -372,15 +327,19 @@ mod internal {
 pub use self::internal::*;
 use crate::crud;
 
+fn none_bool() -> Option<bool> { None }
+fn none_i32() -> Option<i32> { None }
+
+pub fn default_account_verified() -> bool { false }
+pub fn default_atlas_tiling_type_id() -> i32 { 2 }
+
 crud! {
     "account", account,,
     struct Account {
-        #[serde(skip_serializing)]
         email: String,
-        #[serde(skip_serializing)]
         password: String,
         display_name: String,
-        #[serde(skip_deserializing)]
+        #[serde(skip_deserializing)] { "default_account_verified", "none_bool" }
         verified: bool,
     },
 
@@ -399,6 +358,7 @@ crud! {
     "atlas", atlas, Tiling TilingType,
     struct Atlas {
         tiling_id: i32,
+        #[serde(skip_deserializing)] { "default_atlas_tiling_type_id", "none_i32" }
         tiling_type_id: i32,
     },
 

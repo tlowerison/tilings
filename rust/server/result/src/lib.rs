@@ -46,6 +46,7 @@ mod lib {
         Diesel(DieselError),
         R2D2(R2D2Error),
         Redis(RedisError),
+        Status(Status),
         Unauthorized,
     }
 
@@ -58,6 +59,7 @@ mod lib {
                 Error::Diesel(err) => write!(f, "{}", err),
                 Error::R2D2(err) => write!(f, "{}", err),
                 Error::Redis(err) => write!(f, "{}", err),
+                Error::Status(status) => write!(f, "{}", status),
                 Error::Unauthorized => write!(f, "{}", UNAUTHORIZED_ERR_MSG),
             }
         }
@@ -107,9 +109,13 @@ mod lib {
                         status: Status::Unauthorized,
                     },
                 },
-                Error::Unauthorized =>  Response {
+                Error::Unauthorized => Response {
                     message: String::from(UNAUTHORIZED_ERR_MSG),
                     status: Status::Unauthorized,
+                },
+                Error::Status(status) => Response {
+                    message: String::from(""),
+                    status,
                 },
                 _ => Response {
                     message: String::from(INTERNAL_SERVER_ERR_MSG),

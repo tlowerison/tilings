@@ -1,4 +1,3 @@
-#![feature(macro_attributes_in_derive_output)]
 #![recursion_limit="1024"]
 
 #[cfg(not(target_arch = "wasm32"))]

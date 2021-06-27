@@ -1,27 +1,27 @@
 use crate::{from_data, tables::*};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPoint {
     pub polygon_point: PolygonPoint,
     pub point: Point,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygon {
     pub polygon: Polygon,
     pub labels: Vec<Label>,
     pub points: Vec<FullPolygonPoint>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPost {
     pub polygon: PolygonPost,
     pub label_ids: Option<Vec<i32>>,
     pub points: Vec<PointPost>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPatch {
     pub polygon: PolygonPatch,
     pub label_ids: Option<Vec<i32>>, // if present, replace

@@ -3,6 +3,7 @@
 mod account;
 mod atlas;
 mod common;
+mod health_check;
 mod labels;
 mod polygon;
 mod search;
@@ -11,6 +12,7 @@ mod tiling;
 
 pub use self::account::*;
 pub use self::atlas::*;
+pub use self::health_check::*;
 pub use self::labels::*;
 pub use self::polygon::*;
 pub use self::search::*;

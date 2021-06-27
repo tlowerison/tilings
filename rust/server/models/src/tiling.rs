@@ -1,19 +1,37 @@
 use crate::{from_data, tables::*};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullTiling {
     pub tiling: Tiling,
     pub labels: Vec<Label>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullTilingPost {
     pub tiling: TilingPost,
     pub label_ids: Option<Vec<i32>>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct FullSubTilingPost {
+    pub title: String,
+    pub label_ids: Option<Vec<i32>>,
+}
+
+impl FullSubTilingPost {
+    pub fn as_full_tiling_post(self, tiling_type_id: i32) -> FullTilingPost {
+        FullTilingPost {
+            tiling: TilingPost {
+                title: self.title,
+                tiling_type_id,
+            },
+            label_ids: self.label_ids,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullTilingPatch {
     pub tiling: TilingPatch,
     pub label_ids: Option<Vec<i32>>,
@@ -46,6 +64,7 @@ mod internal {
         }
 
         fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
+            diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq(id))).execute(conn)?;
             Tiling::delete(id, conn)
         }
 

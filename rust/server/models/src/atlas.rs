@@ -7,7 +7,7 @@ use crate::{
 use crate::tables::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasEdge {
     pub id: i32,
     pub polygon_index: usize,
@@ -16,44 +16,46 @@ pub struct FullAtlasEdge {
     pub parity: bool,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasEdgePost {
-    pub polygon_index: i32,
-    pub point_index: i32,
-    pub neighbor_index: i32,
+    pub polygon_index: usize,
+    pub point_index: usize,
+    pub neighbor_index: usize,
+    pub parity: bool,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasVertex {
     pub id: i32,
     pub edges: Vec<FullAtlasEdge>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasVertexPost {
-    pub title: Option<String>,
     pub edges: Vec<FullAtlasEdgePost>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlas {
+    pub id: i32,
     pub tiling: FullTiling,
     pub polygons: Vec<FullPolygon>,
     pub vertices: Vec<FullAtlasVertex>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasPost {
-    pub tiling: FullTilingPost,
-    pub polygons: Vec<FullPolygonPost>,
+    pub tiling: FullSubTilingPost,
+    pub polygon_ids: Vec<i32>,
     pub vertices: Vec<FullAtlasVertexPost>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasPatch {
+    pub id: i32,
     pub tiling: FullTilingPatch,
-    pub polygons: Option<Vec<FullPolygonPost>>,
-    pub vertices: Option<Vec<FullPolygonPost>>,
+    pub polygon_ids: Option<Vec<i32>>,
+    pub vertices: Option<Vec<FullAtlasVertexPost>>,
 }
 
 from_data! {
@@ -69,9 +71,12 @@ from_data! {
 #[cfg(not(target_arch = "wasm32"))]
 mod internal {
     use super::*;
+    use crate::tables::default_atlas_tiling_type_id;
     use diesel::{self, prelude::*};
     use itertools::Itertools;
-    use result::Result;
+    use result::{Error, Result};
+    use rocket::http::Status;
+    use schema::*;
     use std::collections::HashMap;
 
     impl Full for FullAtlas {
@@ -165,14 +170,28 @@ mod internal {
                 .collect::<Vec<FullAtlasVertex>>();
 
             Ok(FullAtlas {
+                id,
                 tiling: full_tiling,
                 polygons: full_polygons,
                 vertices: full_atlas_vertices,
             })
         }
 
-        fn delete(_id: i32, _conn: &PgConnection) -> Result<usize> {
-            todo!()
+        fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
+            println!("start delete");
+            diesel::delete(atlasedge::table.filter(atlasedge::atlas_id.eq(id)))
+                .execute(conn)?;
+            println!("deleted edges");
+            diesel::delete(atlasvertex::table.filter(atlasvertex::atlas_id.eq(id)))
+                .execute(conn)?;
+            println!("deleted vertices");
+            let atlas = Atlas::find(id, conn)?;
+            println!("found atlas");
+            Atlas::delete(id, conn)?;
+            println!("deleted atlas");
+            FullTiling::delete(atlas.tiling_id, conn)?;
+            println!("deleted full tiling");
+            Ok(1)
         }
 
         fn find_batch(_ids: Vec<i32>, _conn: &PgConnection) -> Result<Vec<Self>> {
@@ -187,16 +206,137 @@ mod internal {
     impl FullInsertable for FullAtlasPost {
         type Base = FullAtlas;
 
-        fn insert(self, _conn: &PgConnection) -> Result<Self::Base> {
-            todo!()
+        fn insert(self, conn: &PgConnection) -> Result<Self::Base> {
+            let full_tiling = self.tiling.as_full_tiling_post(default_atlas_tiling_type_id()).insert(conn)?;
+
+            let atlas = AtlasPost {
+                tiling_id: full_tiling.tiling.id,
+                tiling_type_id: default_atlas_tiling_type_id(),
+            }.insert(conn)?;
+
+            let full_polygons = FullPolygon::find_batch(self.polygon_ids, conn)?;
+
+            let atlas_vertices = self.vertices
+                .iter()
+                .map(|_|
+                    AtlasVertexPost {
+                        atlas_id: atlas.id,
+                    }.insert(conn)
+                )
+                .collect::<Result<Vec<AtlasVertex>>>()?;
+
+            let full_atlas_vertices = izip!(atlas_vertices.iter(), self.vertices.iter())
+                .map(|(atlas_vertex, full_atlas_vertex_post)| {
+                    let atlas_edges = full_atlas_vertex_post.edges
+                        .iter()
+                        .map(|edge_post| AtlasEdgePost {
+                            atlas_id: atlas.id,
+                            polygon_point_id: full_polygons
+                                .get(edge_post.polygon_index)
+                                .ok_or(Error::Status(Status::BadRequest))?
+                                .points
+                                .get(edge_post.point_index)
+                                .ok_or(Error::Status(Status::BadRequest))?
+                                .polygon_point.id,
+                            source_id: atlas_vertex.id,
+                            sink_id: atlas_vertices
+                                .get(edge_post.neighbor_index)
+                                .ok_or(Error::Status(Status::BadRequest))?
+                                .id,
+                            parity: edge_post.parity,
+                        }.insert(conn))
+                        .collect::<Result<Vec<AtlasEdge>>>()?;
+                    Ok(FullAtlasVertex {
+                        id: atlas_vertex.id,
+                        edges: izip!(atlas_edges.iter(), full_atlas_vertex_post.edges.iter())
+                            .map(|(atlas_edge, full_atlas_edge_post)| FullAtlasEdge {
+                                id: atlas_edge.id,
+                                polygon_index: full_atlas_edge_post.polygon_index,
+                                point_index: full_atlas_edge_post.point_index,
+                                neighbor_index: full_atlas_edge_post.neighbor_index,
+                                parity: full_atlas_edge_post.parity,
+                            })
+                            .collect()
+                    })
+                })
+                .collect::<Result<Vec<FullAtlasVertex>>>()?;
+
+            Ok(FullAtlas {
+                id: atlas.id,
+                tiling: full_tiling,
+                polygons: full_polygons,
+                vertices: full_atlas_vertices,
+            })
         }
     }
 
     impl FullChangeset for FullAtlasPatch {
         type Base = FullAtlas;
 
-        fn update(self, _conn: &PgConnection) -> Result<Self::Base> {
-            todo!()
+        fn update(self, conn: &PgConnection) -> Result<Self::Base> {
+            let atlas_id = self.id.clone();
+            let full_tiling = self.tiling.update(conn)?;
+
+            if let Some(vertices) = self.vertices {
+                let polygon_ids = self.polygon_ids.ok_or(Error::Status(Status::BadRequest))?;
+
+                diesel::delete(atlasvertex::table.filter(atlasvertex::atlas_id.eq(atlas_id)))
+                    .execute(conn)?;
+                diesel::delete(atlasedge::table.filter(atlasedge::atlas_id.eq(atlas_id)))
+                    .execute(conn)?;
+
+                let full_polygons = FullPolygon::find_batch(polygon_ids, conn)?;
+
+                let atlas_vertices = vertices
+                    .iter()
+                    .map(|_| AtlasVertexPost { atlas_id }.insert(conn))
+                    .collect::<Result<Vec<AtlasVertex>>>()?;
+
+                let full_atlas_vertices = izip!(atlas_vertices.iter(), vertices.iter())
+                    .map(|(atlas_vertex, full_atlas_vertex_post)| {
+                        let atlas_edges = full_atlas_vertex_post.edges
+                            .iter()
+                            .map(|edge_post| AtlasEdgePost {
+                                atlas_id,
+                                polygon_point_id: full_polygons
+                                    .get(edge_post.polygon_index)
+                                    .ok_or(Error::Status(Status::BadRequest))?
+                                    .points
+                                    .get(edge_post.point_index)
+                                    .ok_or(Error::Status(Status::BadRequest))?
+                                    .polygon_point.id,
+                                source_id: atlas_vertex.id,
+                                sink_id: atlas_vertices
+                                    .get(edge_post.neighbor_index)
+                                    .ok_or(Error::Status(Status::BadRequest))?
+                                    .id,
+                                parity: edge_post.parity,
+                            }.insert(conn))
+                            .collect::<Result<Vec<AtlasEdge>>>()?;
+                        Ok(FullAtlasVertex {
+                            id: atlas_vertex.id,
+                            edges: izip!(atlas_edges.iter(), full_atlas_vertex_post.edges.iter())
+                                .map(|(atlas_edge, full_atlas_edge_post)| FullAtlasEdge {
+                                    id: atlas_edge.id,
+                                    polygon_index: full_atlas_edge_post.polygon_index,
+                                    point_index: full_atlas_edge_post.point_index,
+                                    neighbor_index: full_atlas_edge_post.neighbor_index,
+                                    parity: full_atlas_edge_post.parity,
+                                })
+                                .collect()
+                        })
+                    })
+                    .collect::<Result<Vec<FullAtlasVertex>>>()?;
+
+                Ok(FullAtlas {
+                    id: atlas_id,
+                    tiling: full_tiling,
+                    polygons: full_polygons,
+                    vertices: full_atlas_vertices,
+                })
+            } else {
+                FullAtlas::find(atlas_id, conn)
+            }
         }
     }
 }

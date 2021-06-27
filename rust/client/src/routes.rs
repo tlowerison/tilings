@@ -1,6 +1,3 @@
-extern crate console_error_panic_hook;
-extern crate serde_json;
-
 use models;
 use paste::paste;
 use percent_encoding::{self, NON_ALPHANUMERIC};
@@ -15,8 +12,6 @@ use web_sys::{
     RequestMode,
     Response,
 };
-
-const BASE_URL: &'static str = "http://localhost:8000";
 
 #[derive(Debug, Deserialize, Serialize)]
 enum Error {
@@ -37,7 +32,10 @@ impl Error {
 }
 
 fn url(path: &str) -> String {
-    format!("{}{}", BASE_URL, path)
+    lazy_static! {
+        static ref BASE_URL: &'static str = env!("SERVER_HOST");
+    }
+    format!("{}{}", *BASE_URL, path)
 }
 
 fn clean_query(url: String) -> Result<String, JsValue> {
@@ -189,8 +187,12 @@ macro_rules! post_patch {
 
                     opts.mode(RequestMode::Cors);
 
-                    $(opts.body(Some(&JsValue::from_serde(&$data_name)
-                        .or(Err(Error::Serde.js_value()))?));)?
+                    $(
+                        opts.body(Some(&JsValue::from_str(
+                            &serde_json::to_string(&$data_name)
+                                .or(Err(Error::Serde.js_value()))?
+                        )));
+                    )?
 
                     let url = clean_query(url(&format!(
                         $route,
@@ -226,47 +228,47 @@ macro_rules! post_patch {
 }
 
 get_delete! {
-    "GET", "/check-display-name/{}", check_display_name, checkDisplayName,
-    bool,
-    Params {
-        display_name: String,
-    },
-    Query {},
-
-    "GET", "/check-email/{}", check_email, checkEmail,
-    bool,
-    Params {
-        email: String,
-    },
-    Query {},
-
-    "DELETE", "/label/{}", delete_label, deleteLabel,
-    usize,
-    Params {
-        id: i32,
-    },
-    Query {},
-
-    "DELETE", "/polygon/{}", delete_polygon, deletePolygon,
-    usize,
-    Params {
-        id: i32,
-    },
-    Query {},
-
-    "GET", "/atlas/{}", get_atlas, getAtlas,
+    "GET", "/api/tilings/v1/atlas/{}", get_atlas, getAtlas,
     models::FullAtlas,
     Params {
         id: i32,
     },
     Query {},
 
-    "GET", "/atlases", get_atlases, getAtlases,
-    Vec<models::FullAtlas>,
+    "DELETE", "/api/tilings/v1/atlas/{}", delete_atlas, deleteAtlas,
+    usize,
+    Params {
+        id: i32,
+    },
+    Query {},
+
+    "GET", "/api/tilings/v1/atlases", get_atlases, getAtlases,
+    Vec<models::Atlas>,
     Params {},
     Query {},
 
-    "GET", "/labels?start_id={}&end_id={}&limit={}", get_labels, getLabels,
+    "GET", "/api/tilings/v1/check-display-name/{}", check_display_name, checkDisplayName,
+    bool,
+    Params {
+        display_name: String,
+    },
+    Query {},
+
+    "GET", "/api/tilings/v1/check-email/{}", check_email, checkEmail,
+    bool,
+    Params {
+        email: String,
+    },
+    Query {},
+
+    "DELETE", "/api/tilings/v1/label/{}", delete_label, deleteLabel,
+    usize,
+    Params {
+        id: i32,
+    },
+    Query {},
+
+    "GET", "/api/tilings/v1/labels?start_id={}&end_id={}&limit={}", get_labels, getLabels,
     Vec<models::Label>,
     Params {},
     Query {
@@ -275,29 +277,36 @@ get_delete! {
         limit: u32,
     },
 
-    "GET", "/match-labels?query={}", match_labels, matchLabels,
+    "GET", "/api/tilings/v1/match-labels?query={}", match_labels, matchLabels,
     Vec<models::Label>,
     Params {},
     Query {
         query: String,
     },
 
-    "GET", "/omni-search?query={}", omni_search, omniSearch,
+    "GET", "/api/tilings/v1/omni-search?query={}", omni_search, omniSearch,
     Vec<models::TextSearchItem>,
     Params {},
     Query {
         query: String,
     },
 
-    "GET", "/polygon/{}", get_polygon, getPolygon,
+    "GET", "/api/tilings/v1/polygon/{}", get_polygon, getPolygon,
     models::FullPolygon,
     Params {
         id: i32,
     },
     Query {},
 
-    "GET", "/polygons?start_id={}&end_id={}&limit={}", get_polygons, getPolygons,
-    Vec<models::FullPolygon>,
+    "DELETE", "/api/tilings/v1/polygon/{}", delete_polygon, deletePolygon,
+    usize,
+    Params {
+        id: i32,
+    },
+    Query {},
+
+    "GET", "/api/tilings/v1/polygons?start_id={}&end_id={}&limit={}", get_polygons, getPolygons,
+    Vec<models::Polygon>,
     Params {},
     Query {
         start_id: i32,
@@ -305,19 +314,19 @@ get_delete! {
         limit: u32,
     },
 
-    "GET", "/reset-api-key", reset_api_key, resetApiKey,
+    "GET", "/api/tilings/v1/reset-api-key", reset_api_key, resetApiKey,
     String,
     Params {},
     Query {},
 
-    "GET", "/tiling/{}", get_tiling, getTiling,
+    "GET", "/api/tilings/v1/tiling/{}", get_tiling, getTiling,
     models::FullTiling,
     Params {
         id: i32,
     },
     Query {},
 
-    "GET", "/tilings?start_id={}&end_id={}&limit={}", get_tilings, getTilings,
+    "GET", "/api/tilings/v1/tilings?start_id={}&end_id={}&limit={}", get_tilings, getTilings,
     Vec<models::Tiling>,
     Params {},
     Query {
@@ -326,21 +335,21 @@ get_delete! {
         limit: u32,
     },
 
-    "GET", "/tiling-search?query={}", tiling_search, tilingSearch,
+    "GET", "/api/tilings/v1/tiling-search?query={}", tiling_search, tilingSearch,
     Vec<models::TextSearchItem>,
     Params {},
     Query {
         query: String,
     },
 
-    "GET", "/tiling-type/{}", get_tiling_type, getTilingType,
+    "GET", "/api/tilings/v1/tiling-type/{}", get_tiling_type, getTilingType,
     models::TilingType,
     Params {
         id: i32,
     },
     Query {},
 
-    "GET", "/tiling-types?start_id={}&end_id={}&limit={}", get_tiling_types, getTilingTypes,
+    "GET", "/api/tilings/v1/tiling-types?start_id={}&end_id={}&limit={}", get_tiling_types, getTilingTypes,
     Vec<models::TilingType>,
     Params {},
     Query {
@@ -351,43 +360,49 @@ get_delete! {
 }
 
 post_patch! {
-    "POST", "/add-label-to-polygon", add_label_to_polygon, addLabelToPolygon,
+    "POST", "/api/tilings/v1/add-label-to-polygon", add_label_to_polygon, addLabelToPolygon,
     (),
     Params {},
     Query {},
     Data polygon_label: models::PolygonLabel,
 
-    "POST", "/create-polygon", create_polygon, createPolygon,
+    "POST", "/api/tilings/v1/atlas", create_atlas, createAtlas,
+    models::FullAtlas,
+    Params {},
+    Query {},
+    Data atlas_post: models::FullAtlasPost,
+
+    "POST", "/api/tilings/v1/create-polygon", create_polygon, createPolygon,
     models::FullPolygon,
     Params {},
     Query {},
-    Data polygon_post: models::FullPolygonPost,
+    Data full_polygon_post: models::FullPolygonPost,
 
-    "POST", "/sign-in", sign_in, signIn,
+    "POST", "/api/tilings/v1/sign-in", sign_in, signIn,
     (),
     Params {},
     Query {},
     Data sign_in_post: models::SignInPost,
 
-    "POST", "/sign-out", sign_out, signOut,
+    "POST", "/api/tilings/v1/sign-out", sign_out, signOut,
     (),
     Params {},
     Query {},
     Data,
 
-    "POST", "/sign-up", sign_up, signUp,
+    "POST", "/api/tilings/v1/sign-up", sign_up, signUp,
     (),
     Params {},
     Query {},
     Data sign_in_post: models::AccountPost,
 
-    "POST", "/update-polygon", update_polygon, updatePolygon,
+    "POST", "/api/tilings/v1/update-polygon", update_polygon, updatePolygon,
     (),
     Params {},
     Query {},
-    Data polygon_patch: models::FullPolygonPatch,
+    Data full_polygon_patch: models::FullPolygonPatch,
 
-    "POST", "/upsert-label", upsert_label, upsertLabel,
+    "POST", "/api/tilings/v1/upsert-label", upsert_label, upsertLabel,
     (),
     Params {},
     Query {},

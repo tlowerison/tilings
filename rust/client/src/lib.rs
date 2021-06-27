@@ -1,4 +1,5 @@
 extern crate console_error_panic_hook;
+#[macro_use] extern crate lazy_static;
 extern crate serde_json;
 
 mod coloring;

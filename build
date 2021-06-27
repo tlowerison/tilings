@@ -17,4 +17,11 @@ if [[ "$component" != "client" && "$component" != "server" ]]; then
   exit 1
 fi
 
-docker build . -t "tlowerison/tilings-$component:$version" -f "Dockerfile.$component" ${@:3}
+default_args=()
+if [[ "$component" == "client" ]]; then
+  default_args=("--build-arg" "SERVER_HOST=https://tlowerison.com")
+fi
+
+docker build . -t "tlowerison/tilings-$component:$version" -f "Dockerfile.$component" \
+  ${default_args[@]} \
+  ${@:3}

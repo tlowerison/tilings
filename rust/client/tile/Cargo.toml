@@ -1,6 +1,6 @@
 [package]
 name = "tile"
-version = "0.1.0"
+version = "0.1.5"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 

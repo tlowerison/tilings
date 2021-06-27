@@ -1,7 +1,4 @@
 #!/bin/sh
-set -e
-
-CONFIG=release
 mkdir -p www/pkg
 
 cd rust/client
@@ -11,7 +8,8 @@ then
 	cargo install wasm-pack
 fi
 
-wasm-pack build --out-dir ../../www/pkg
+export SERVER_HOST="http://localhost:8000"
+wasm-pack build --out-dir ../../www/pkg || exit
 
 cd ../../www
 yarn add ./pkg

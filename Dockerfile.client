@@ -4,11 +4,18 @@ FROM rust:1.52.1 AS build-rust
 
   WORKDIR /app
 
+  RUN mkdir -p rust
   RUN mkdir -p www
   RUN mkdir -p www/pkg
+  RUN cd rust && cargo new server && cd ..
+  RUN cd rust/server && cargo new result --lib && cd ../..
+  RUN cd rust/server && cargo new schema --lib && cd ../..
   COPY rust rust
 
   WORKDIR /app/rust/client
+
+  ARG SERVER_HOST
+  ENV SERVER_HOST=$SERVER_HOST
 
   RUN wasm-pack build --out-dir ../../www/pkg --release
 

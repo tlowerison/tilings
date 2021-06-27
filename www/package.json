@@ -1,9 +1,10 @@
 {
   "name": "@tlowerison/tilings",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Trey Lowerison",
   "description": "Tilings",
   "main": "./src/index.tsx",
+  "port": 3000,
   "scripts": {
     "build": "rm -rf ./dist; NODE_ENV=production webpack",
     "restart:local": "yarn build && yarn start:nginx:local",

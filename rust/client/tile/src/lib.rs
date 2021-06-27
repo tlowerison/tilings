@@ -159,7 +159,7 @@ impl From<&FullPolygon> for ProtoTile {
             full_polygon
                 .points
                 .iter()
-                .map(|point| Point(point.point.x(), point.point.y()))
+                .map(|point| Point(point.point.x, point.point.y))
                 .collect()
         )
     }

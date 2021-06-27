@@ -1,5 +1,7 @@
 FROM rust:1.52.1 AS build-rust
 
+  WORKDIR /app/rust
+
   WORKDIR /app/rust/server
 
   COPY \
@@ -8,10 +10,24 @@ FROM rust:1.52.1 AS build-rust
     rust/server/rust-toolchain.toml \
     .
 
-  RUN \
-    mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo fetch
+  COPY rust/server/api/Cargo.toml     api/
+  COPY rust/server/auth/Cargo.toml    auth/
+  COPY rust/server/db_conn/Cargo.toml db_conn/
+  COPY rust/server/models/Cargo.toml  models/
+  COPY rust/server/queries/Cargo.toml queries/
+  COPY rust/server/result/Cargo.toml  result/
+  COPY rust/server/schema/Cargo.toml  schema/
+
+  RUN mkdir -p src         && echo "fn main() {}" > src/main.rs
+  RUN mkdir -p api/src     && echo "fn main() {}" > api/src/main.rs
+  RUN mkdir -p auth/src    && echo "fn main() {}" > auth/src/main.rs
+  RUN mkdir -p db_conn/src && echo "fn main() {}" > db_conn/src/main.rs
+  RUN mkdir -p models/src  && echo "fn main() {}" > models/src/main.rs
+  RUN mkdir -p queries/src && echo "fn main() {}" > queries/src/main.rs
+  RUN mkdir -p result/src  && echo "fn main() {}" > result/src/main.rs
+  RUN mkdir -p schema/src  && echo "fn main() {}" > schema/src/main.rs
+
+  RUN cargo fetch
 
   COPY rust/server/ .
 

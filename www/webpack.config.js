@@ -18,7 +18,7 @@ module.exports = {
     compress: true,
     historyApiFallback: true,
     hot: true,
-    port: 3000,
+    port: pkg.port,
   },
   entry: "./src/index.tsx",
   experiments: {

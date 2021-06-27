@@ -1,7 +1,7 @@
 use crate::from_data;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SignInPost {
     pub email: String,
     pub password: String,

@@ -99,11 +99,14 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(redis_pool)
-        .mount("/", routes![
+        .mount("/", routes![health])
+        .mount("/api/tilings", routes![
             add_label_to_polygon,
             check_display_name,
             check_email,
+            create_atlas,
             create_polygon,
+            delete_atlas,
             delete_label,
             delete_polygon,
             get_atlas,
