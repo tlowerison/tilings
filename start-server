@@ -1,0 +1,3 @@
+#!/bin/sh
+cd rust/server
+cargo build && ./cred local ../target/debug/server

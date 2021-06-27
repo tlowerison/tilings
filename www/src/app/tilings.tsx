@@ -28,7 +28,7 @@ export const Tilings = () => {
   const [searchOptions, setSearchOptions] = useState<TextSearchItem[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  const onSearchChange = useMemo(
+  const onInputChange = useMemo(
     () => debounce(async (event: Event) => {
       // @ts-ignore
       const search = event.target.value;
@@ -48,15 +48,14 @@ export const Tilings = () => {
     [],
   );
 
-  const onSelectedChange = useCallback(
-    (event: Event) => {
-      // @ts-ignore
-      const selected = event?.target?.value || 1;
+  const onChange = useCallback(
+    (_: Event, textSearchItem: TextSearchItem | undefined) => {
       const canvas = canvasRef.current;
-
       if (canvas) {
         clearCanvas(canvas, true);
-        setTiling(canvas, selected);
+        if (textSearchItem) {
+          setTiling(canvas, textSearchItem.id);
+        }
       }
     },
     [],
@@ -78,8 +77,8 @@ export const Tilings = () => {
         getOptionSelected={(option: TextSearchItem, value: TextSearchItem) => option.id === value.id}
         loading={searchLoading}
         {...{} /* @ts-ignore */}
-        onChange={onSelectedChange}
-        onInputChange={onSearchChange}
+        onChange={onChange}
+        onInputChange={onInputChange}
         options={searchOptions}
         renderInput={(params) => (
           <TextField

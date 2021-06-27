@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "common",
  "float-cmp",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "atlas",
  "colourado",
@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "float-cmp",
  "itertools",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "geometry"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "common",
  "float-cmp",
@@ -2644,7 +2644,7 @@ dependencies = [
 
 [[package]]
 name = "tile"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "common",
  "float-cmp",
