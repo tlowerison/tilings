@@ -3,11 +3,9 @@
 !/nginx/mime.types
 !/nginx/nginx.conf.template
 
-!/rust/Cargo.lock
-!/rust/Cargo.toml
-!/rust/client
-!/rust/server/models
-/rust/client/target
+!/rust
+/rust/**/*.env
+/rust/target
 
 !/www
 /www/dist
