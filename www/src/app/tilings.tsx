@@ -12,8 +12,8 @@ const canvasWidth = isMobile()
   ? window.outerWidth - 100
   : window.outerWidth;
 const canvasHeight = isMobile()
-  ? window.outerHeight - 150
-  : window.outerHeight - 120;
+  ? window.outerHeight - 180
+  : window.outerHeight - 150;
 
 type TextSearchItem = {
   id: number;
@@ -65,6 +65,7 @@ export const Tilings = () => {
     <>
       <h1 className={styles.title}>Tilings</h1>
       <Autocomplete
+        className={styles.search}
         getOptionLabel={
           ({ title, labels }) => `${
             title
@@ -96,7 +97,6 @@ export const Tilings = () => {
             }}
           />
         )}
-        style={{ width: 300 }}
       />
       <Canvas
         ref={canvasRef}
