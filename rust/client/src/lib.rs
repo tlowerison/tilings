@@ -34,10 +34,10 @@ const FROM_CANVAS_AFFINE: Affine = Affine([[1./SCALE, 0.], [0., -1./SCALE]], [-C
 
 #[wasm_bindgen]
 #[allow(non_snake_case)]
-pub async fn setTiling(canvas: HtmlCanvasElement, atlas_id: i32) -> Result<JsValue, JsValue> {
+pub async fn setTiling(canvas: HtmlCanvasElement, tiling_id: i32) -> Result<JsValue, JsValue> {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-    let atlas = get_atlas(atlas_id).await?;
+    let atlas = get_atlas_by_tiling_id(tiling_id).await?;
 
     unsafe {
         match &mut GLOBAL {
@@ -47,18 +47,18 @@ pub async fn setTiling(canvas: HtmlCanvasElement, atlas_id: i32) -> Result<JsVal
                 GLOBAL = Some(Mutex::new(Global {
                     coloring,
                     cur_tile_centroid,
-                    tiling_id: atlas_id,
+                    tiling_id,
                     patch: RefCell::new(patch),
                 }));
             },
             Some(mutex) => {
                 let mut global = mutex.lock().unwrap();
-                if global.tiling_id != atlas_id {
+                if global.tiling_id != tiling_id {
                     let (patch, coloring, cur_tile_centroid) = patch_from_atlas(atlas)?;
                     global.coloring = coloring;
                     global.cur_tile_centroid = cur_tile_centroid;
                     global.patch = RefCell::new(patch);
-                    global.tiling_id = atlas_id;
+                    global.tiling_id = tiling_id;
                 }
             },
         }

@@ -111,6 +111,7 @@ fn rocket() -> _ {
             delete_polygon,
             get_atlas,
             get_atlases,
+            get_atlas_by_tiling_id,
             get_labels,
             get_polygon,
             get_polygons,

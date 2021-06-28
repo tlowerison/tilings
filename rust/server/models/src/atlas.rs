@@ -339,6 +339,14 @@ mod internal {
             }
         }
     }
+
+    impl FullAtlas {
+        pub fn find_by_tiling_id(tiling_id: i32, conn: &PgConnection) -> Result<Self> {
+            let atlas: Atlas = atlas::table.filter(atlas::tiling_id.eq(tiling_id))
+                .get_result(conn)?;
+            FullAtlas::find(atlas.id, conn)
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

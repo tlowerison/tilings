@@ -247,6 +247,13 @@ get_delete! {
     Params {},
     Query {},
 
+    "GET", "/api/tilings/v1/atlas-by-tiling-id/{}", get_atlas_by_tiling_id, getAtlasByTilingId,
+    models::FullAtlas,
+    Params {
+        tiling_id: i32,
+    },
+    Query {},
+
     "GET", "/api/tilings/v1/check-display-name/{}", check_display_name, checkDisplayName,
     bool,
     Params {
