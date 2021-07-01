@@ -13,8 +13,6 @@ FROM rust:1.52.1 AS build-rust
 
   WORKDIR /app/rust
 
-  COPY rust/Cargo.lock rust/Cargo.toml .
-
   COPY rust/client/Cargo.toml client/
   RUN mkdir -p client/src && touch client/src/lib.rs
 
@@ -38,6 +36,8 @@ FROM rust:1.52.1 AS build-rust
 
   RUN dasel put document -f server/Cargo.toml -s ".target.cfg(not(target_arch = \"wasm32\"))" dependencies={}
   RUN dasel put document -f server/models/Cargo.toml -s ".target.cfg(not(target_arch = \"wasm32\"))" dependencies={}
+
+  COPY rust/Cargo.lock rust/Cargo.toml .
 
   WORKDIR /app/rust/client
 
