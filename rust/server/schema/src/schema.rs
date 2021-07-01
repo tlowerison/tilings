@@ -5,6 +5,7 @@ table! {
         password -> Varchar,
         display_name -> Varchar,
         verified -> Bool,
+        verification_code -> Nullable<Varchar>,
     }
 }
 

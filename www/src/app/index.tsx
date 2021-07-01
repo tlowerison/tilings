@@ -1,6 +1,19 @@
 import React from "react";
 import { Tilings } from "./tilings";
+import { Route, Switch } from "react-router-dom";
+import { Verify } from "./verify";
 import * as client from "client";
+
+export const App = () => (
+  <Switch>
+    <Route path="/atlas">
+      <Tilings />
+    </Route>
+    <Route path="/verify/:verifcationCode">
+      <Verify />
+    </Route>
+  </Switch>
+);
 
 // @ts-ignore
 global.client = Object.fromEntries(
@@ -15,8 +28,4 @@ global.client = Object.fromEntries(
         }
       },
     ])
-);
-
-export const App = () => (
-  <Tilings />
 );

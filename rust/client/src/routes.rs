@@ -196,8 +196,8 @@ macro_rules! post_patch {
 
                     let url = clean_query(url(&format!(
                         $route,
-                        $($($param_name,)*)?
-                        $($(match $arg_name { None => String::from(""), Some(val) => &format!("{}", val) },)*)?
+                        $($param_name,)*
+                        $(match $arg_name { None => String::from(""), Some(val) => percent_encode(format!("{}", val)) },)*
                     )))?;
 
                     let request = Request::new_with_str_and_init(&url, &opts)
@@ -385,6 +385,12 @@ post_patch! {
     Query {},
     Data full_polygon_post: models::FullPolygonPost,
 
+    "POST", "/api/tilings/v1/resend-verification-code-email", resend_verification_code_email, resendVerificationCodeEmail,
+    (),
+    Params {},
+    Query {},
+    Data,
+
     "POST", "/api/tilings/v1/sign-in", sign_in, signIn,
     (),
     Params {},
@@ -414,4 +420,12 @@ post_patch! {
     Params {},
     Query {},
     Data label: String,
+
+    "POST", "/api/tilings/v1/verify/{}", _verify, verify,
+    bool,
+    Params {
+        verification_code: String,
+    },
+    Query {},
+    Data,
 }

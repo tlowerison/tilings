@@ -23,6 +23,16 @@ const MAX_DISPLAY_NAME_ERR_MSG: &'static str = "Display Name must be 100 charact
 
 const EMAIL_DISPLAY_NAME_TAKEN_ERR_MSG: &'static str = "Email / Display Name taken.";
 
+const VERIFICATION_CODE_LENGTH: usize = 32;
+
+fn get_verification_code() -> String {
+    rand::thread_rng()
+        .sample_iter(Alphanumeric)
+        .take(VERIFICATION_CODE_LENGTH)
+        .map(char::from)
+        .collect()
+}
+
 // true if email is available
 pub fn check_email(email: String, conn: &PgConnection) -> Result<bool> {
     let count: Option<i64> = account::table.filter(account::email.eq(email))
@@ -63,7 +73,20 @@ pub fn reset_api_key(mut auth_account: AuthAccount, conn: &PgConnection) -> Resu
     APIKeyClaims { email, api_key }.encode()
 }
 
-pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<i32> {
+pub fn reset_verification_code(account_id: i32, conn: &PgConnection) -> Result<Account> {
+    let verification_code = get_verification_code();
+
+    AccountPatch {
+        id: account_id,
+        verification_code: Some(Some(verification_code)),
+        verified: None,
+        email: None,
+        password: None,
+        display_name: None,
+    }.update(conn)
+}
+
+pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<Account> {
     if account_post.email.len() > MAX_EMAIL_LENGTH {
         return Err(Error::Custom(
             Status::BadRequest,
@@ -108,13 +131,14 @@ pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<i32> {
         password: password_hash,
         display_name: account_post.display_name,
         verified: false,
+        verification_code: Some(get_verification_code()),
     }.insert(conn)
         .or(Err(Error::Custom(
             Status::BadRequest,
             String::from(EMAIL_DISPLAY_NAME_TAKEN_ERR_MSG),
         )))?;
 
-    Ok(account.id)
+    Ok(account)
 }
 
 pub fn sign_in(email: String, password: String, conn: &PgConnection) -> Result<i32> {
@@ -135,6 +159,22 @@ pub fn sign_in(email: String, password: String, conn: &PgConnection) -> Result<i
     }
 }
 
-pub fn sign_out(_conn: &PgConnection) -> Result<()> {
-    Ok(())
+pub fn verify(verification_code: String, conn: &PgConnection) -> Result<bool> {
+    let existing_account: Account = account::table.filter(account::verification_code.eq(verification_code))
+        .get_result(conn)?;
+
+    if existing_account.verified {
+        return Ok(true)
+    }
+
+    AccountPatch {
+        id: existing_account.id,
+        verified: Some(true),
+        verification_code: Some(None),
+        email: None,
+        password: None,
+        display_name: None,
+    }.update(conn)?;
+
+    Ok(true)
 }

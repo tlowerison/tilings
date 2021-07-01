@@ -121,6 +121,7 @@ fn rocket() -> _ {
             get_tiling_types,
             match_labels,
             omni_search,
+            resend_verification_code_email,
             reset_api_key,
             sign_in,
             sign_out,
@@ -128,6 +129,7 @@ fn rocket() -> _ {
             tiling_search,
             update_polygon,
             upsert_label,
+            verify,
         ])
         .attach(DbConn::fairing())
 }

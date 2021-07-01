@@ -329,8 +329,10 @@ use crate::crud;
 
 fn none_bool() -> Option<bool> { None }
 fn none_i32() -> Option<i32> { None }
+fn none_opt_string() -> Option<Option<String>> { None }
 
 pub fn default_account_verified() -> bool { false }
+pub fn default_account_verification_code() -> Option<String> { None }
 pub fn default_atlas_tiling_type_id() -> i32 { 2 }
 
 crud! {
@@ -341,6 +343,8 @@ crud! {
         display_name: String,
         #[serde(skip_deserializing)] { "default_account_verified", "none_bool" }
         verified: bool,
+        #[serde(skip_deserializing)] { "default_account_verification_code", "none_opt_string" }
+        verification_code: Option<String>,
     },
 
     "accountrole", accountrole, Account Role,

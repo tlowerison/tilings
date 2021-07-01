@@ -10,6 +10,7 @@ auth = { path = "../auth" }
 futures = "0.3.15"
 db_conn = { path = "../db_conn" }
 lazy_static = "1.4.0"
+lettre = "0.10.0-rc.3"
 models = { path = "../models" }
 queries = { path = "../queries" }
 percent-encoding = "2.1.0"

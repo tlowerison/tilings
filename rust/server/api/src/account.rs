@@ -1,5 +1,12 @@
 use auth::*;
 use db_conn::DbConn;
+use lazy_static::lazy_static;
+use lettre::{
+    Message,
+    SmtpTransport,
+    Transport,
+    transport::smtp::authentication::Credentials,
+};
 use models::*;
 use queries;
 use r2d2_redis::{
@@ -10,13 +17,20 @@ use r2d2_redis::{
 use rand::{self, distributions::Alphanumeric, Rng};
 use result::{Error, Result};
 use rocket::{
-    http::{Cookie, CookieJar},
+    http::{Cookie, CookieJar, Status},
     serde::json::Json,
     State,
 };
 use std::ops::DerefMut;
+use async_std::task;
 
 pub const COOKIE_LENGTH: usize = 32;
+lazy_static! {
+    static ref CLIENT_HOST: String = std::env::var("CLIENT_HOST").unwrap();
+    static ref SMTP_EMAIL: String = std::env::var("SMTP_EMAIL").unwrap();
+    static ref SMTP_PASSWORD: String = std::env::var("SMTP_PASSWORD").unwrap();
+    static ref VERIFY_PATH: String = std::env::var("VERIFY_PATH").unwrap();
+}
 
 #[get("/v1/check-email/<email>")]
 pub async fn check_email(email: String, db: DbConn) -> Result<Json<bool>> {
@@ -31,6 +45,20 @@ pub async fn check_display_name(display_name: String, db: DbConn) -> Result<Json
 #[get("/v1/reset-api-key")]
 pub async fn reset_api_key(db: DbConn, auth_account: AuthAccount) -> Result<Json<String>> {
     db.run(move |conn| conn.build_transaction().run(|| queries::reset_api_key(auth_account, conn))).await.map(Json)
+}
+
+#[post("/v1/resend-verification-code-email")]
+pub async fn resend_verification_code_email(db: DbConn, auth_account: AuthAccount) -> Result<Json<()>> {
+    let account_id = auth_account.id.clone();
+    let account = db.run(move |conn| Account::find(account_id, conn)).await?;
+    if account.verified {
+        return Ok(Json(()))
+    }
+    let account = db.run(move |conn| conn.build_transaction().run(||
+        queries::reset_verification_code(account_id, conn)
+    )).await?;
+    task::spawn(send_verification_code_email(account));
+    Ok(Json(()))
 }
 
 #[post("/v1/sign-in", data = "<sign_in_post>")]
@@ -61,10 +89,19 @@ pub async fn sign_up(account_post: AccountPost, db: DbConn, jar: &CookieJar<'_>,
     let redis_conn = redis_pool.get()?;
     let cookie_value = get_cookie_value();
     let cookie_value_clone = cookie_value.clone(); // must clone prior to async call
-    let account_id = db.run(move |conn| conn.build_transaction().run(|| queries::sign_up(account_post, conn))).await?;
-    store_account_id_in_redis(cookie_value, account_id, redis_conn)?;
+    let account = db.run(move |conn| conn.build_transaction().run(|| queries::sign_up(account_post, conn))).await?;
+    store_account_id_in_redis(cookie_value, account.id, redis_conn)?;
     jar.add_private(Cookie::new(COOKIE_KEY, cookie_value_clone));
+    task::spawn(send_verification_code_email(account));
     Ok(Json(()))
+}
+
+#[post("/v1/verify/<verification_code>")]
+pub async fn verify(verification_code: String, db: DbConn) -> Result<Json<bool>> {
+    db.run(move |conn| queries::verify(verification_code, conn))
+        .await
+        .map(Json)
+        .or(Err(Error::Status(Status::BadRequest)))
 }
 
 fn get_cookie_value() -> String {
@@ -88,4 +125,34 @@ fn remove_account_id_from_redis(key: String, mut conn: PooledConnection<RedisCon
        .arg(key)
        .query::<()>(conn.deref_mut())
        .map_err(Error::from)
+}
+
+async fn send_verification_code_email(account: Account) -> Result<()> {
+    let email = Message::builder()
+        .from(format!("Tilings <{}>", SMTP_EMAIL.to_string()).parse().unwrap())
+        .to(format!("{} <{}>", account.display_name, account.email).parse().unwrap())
+        .subject("Verify your account")
+        .body(format!(
+            "Follow the link to verify your tilings account. {}{}/{}",
+            *CLIENT_HOST,
+            *VERIFY_PATH,
+            account.verification_code.ok_or(Error::Default)?,
+        ))
+        .unwrap();
+
+    let creds = Credentials::new(SMTP_EMAIL.to_string(), SMTP_PASSWORD.to_string());
+
+    // Open a remote connection to gmail
+    let mailer = SmtpTransport::relay("smtp.gmail.com")
+        .unwrap()
+        .credentials(creds)
+        .build();
+
+    // Send the email
+    mailer.send(&email)
+        .map(|_| ())
+        .map_err(|e| {
+            println!("Failed to send email: {:#?}", e);
+            Error::Default
+        })
 }

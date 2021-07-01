@@ -16,7 +16,10 @@ module.exports = {
   devServer: {
     contentBase: path.join(__dirname, "dist"),
     compress: true,
-    historyApiFallback: true,
+    historyApiFallback: {
+      index: path.join(publicPath, "index.html"),
+      disableDotRule: true,
+    },
     hot: true,
     port: pkg.port,
   },

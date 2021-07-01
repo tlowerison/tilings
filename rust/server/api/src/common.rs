@@ -20,9 +20,8 @@ pub fn clamp_optional(max: u32, value: Option<u32>) -> u32 {
 }
 
 pub fn percent_decode(query: String) -> Result<String> {
-    println!("{}", query);
     percent_encoding::percent_decode(query.as_bytes())
         .decode_utf8()
-        .map(|e| { println!("{}", e); String::from(e) })
+        .map(String::from)
         .or(Err(Error::Custom(Status::BadRequest, String::from(INVALID_QUERY_STRING_ERR_MSG))))
 }
