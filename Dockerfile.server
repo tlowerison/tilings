@@ -2,11 +2,12 @@ FROM rust:1.52.1 AS build-rust
 
   WORKDIR /app/rust
 
+  COPY rust/Cargo.lock rust/Cargo.toml .
+
   WORKDIR /app/rust/server
 
   COPY \
     rust/server/Cargo.toml \
-    rust/server/Cargo.lock \
     rust/server/rust-toolchain.toml \
     .
 
