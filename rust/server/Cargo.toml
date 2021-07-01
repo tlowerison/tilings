@@ -1,6 +1,6 @@
 [package]
 name = "server"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
@@ -10,4 +10,5 @@ db_conn = { path = "./db_conn" }
 diesel = { version = "1.4.4", features = ["postgres", "r2d2"] }
 diesel_migrations = "1.4.0"
 r2d2_redis = "0.14.0"
+rate_limiter = { path = "./rate_limiter" }
 rocket = { version = "0.5.0-rc.1", features = ["json", "secrets"] }

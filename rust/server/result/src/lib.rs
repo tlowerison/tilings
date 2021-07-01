@@ -45,6 +45,7 @@ mod lib {
         Default,
         Diesel(DieselError),
         R2D2(R2D2Error),
+        RateLimit,
         Redis(RedisError),
         Status(Status),
         Unauthorized,
@@ -58,6 +59,7 @@ mod lib {
                 Error::Default => write!(f, ""),
                 Error::Diesel(err) => write!(f, "{}", err),
                 Error::R2D2(err) => write!(f, "{}", err),
+                Error::RateLimit => write!(f, "Rate Limit"),
                 Error::Redis(err) => write!(f, "{}", err),
                 Error::Status(status) => write!(f, "{}", status),
                 Error::Unauthorized => write!(f, "{}", UNAUTHORIZED_ERR_MSG),
@@ -109,13 +111,17 @@ mod lib {
                         status: Status::Unauthorized,
                     },
                 },
-                Error::Unauthorized => Response {
-                    message: String::from(UNAUTHORIZED_ERR_MSG),
-                    status: Status::Unauthorized,
+                Error::RateLimit => Response {
+                    message: String::from("Too many requests"),
+                    status: Status::TooManyRequests,
                 },
                 Error::Status(status) => Response {
                     message: String::from(""),
                     status,
+                },
+                Error::Unauthorized => Response {
+                    message: String::from(UNAUTHORIZED_ERR_MSG),
+                    status: Status::Unauthorized,
                 },
                 _ => Response {
                     message: String::from(INTERNAL_SERVER_ERR_MSG),

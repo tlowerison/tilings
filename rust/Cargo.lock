@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "api"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-std",
  "auth",
@@ -303,7 +303,7 @@ dependencies = [
 
 [[package]]
 name = "auth"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-std",
  "base64",
@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "db_conn"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "diesel",
  "rocket_sync_db_pools",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-std",
  "diesel",
@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "queries"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "async-std",
  "auth",
@@ -2209,6 +2209,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rate_limiter"
+version = "0.1.0"
+dependencies = [
+ "api",
+ "async-std",
+ "lazy_static",
+ "r2d2_redis",
+ "regex",
+ "result",
+ "rocket",
+]
+
+[[package]]
 name = "rdrand"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2299,7 +2312,7 @@ dependencies = [
 
 [[package]]
 name = "result"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "diesel",
  "paste",
@@ -2507,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "diesel",
 ]
@@ -2613,13 +2626,14 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "api",
  "db_conn",
  "diesel",
  "diesel_migrations",
  "r2d2_redis",
+ "rate_limiter",
  "rocket",
 ]
 

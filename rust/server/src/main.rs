@@ -6,6 +6,7 @@ use db_conn::DbConn;
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
 use r2d2_redis::{r2d2, RedisConnectionManager};
+use rate_limiter::*;
 
 embed_migrations!();
 
@@ -100,7 +101,7 @@ fn rocket() -> _ {
     rocket::build()
         .manage(redis_pool)
         .mount("/", routes![health])
-        .mount("/api/tilings", routes![
+        .mount(BASE_PATH, routes![
             add_label_to_polygon,
             check_display_name,
             check_email,
@@ -109,6 +110,7 @@ fn rocket() -> _ {
             delete_atlas,
             delete_label,
             delete_polygon,
+            fail_rait_limit,
             get_atlas,
             get_atlases,
             get_atlas_by_tiling_id,
@@ -131,5 +133,6 @@ fn rocket() -> _ {
             upsert_label,
             verify,
         ])
+        .attach(RateLimiter {})
         .attach(DbConn::fairing())
 }

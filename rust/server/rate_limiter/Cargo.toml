@@ -1,0 +1,15 @@
+[package]
+name = "rate_limiter"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+api = { path = "../api" }
+async-std = { version = "1.8.0", features = ["attributes"] }
+lazy_static = "1.4.0"
+r2d2_redis = "0.14.0"
+regex = "1.5.4"
+result = { path = "../result" }
+rocket = { version = "0.5.0-rc.1", features = ["json", "secrets"] }

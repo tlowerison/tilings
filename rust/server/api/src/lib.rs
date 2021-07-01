@@ -18,3 +18,5 @@ pub use self::polygon::*;
 pub use self::search::*;
 pub use self::tiling_type::*;
 pub use self::tiling::*;
+
+pub const BASE_PATH: &'static str = "/api/tilings";
