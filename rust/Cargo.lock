@@ -270,6 +270,7 @@ dependencies = [
  "models",
  "rmp-serde",
  "serde",
+ "serde_json",
  "tile",
 ]
 

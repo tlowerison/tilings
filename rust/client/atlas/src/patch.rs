@@ -2,10 +2,9 @@ use crate::atlas::{ProtoNeighbor, ProtoVertexStar, Atlas};
 use common::*;
 use geometry::{Affine, Euclid, Point, Transform, Transformable};
 use std::collections::HashMap;
-use std::f64::consts::TAU;
 use tile::Tile;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VertexStar {
     pub proto_vertex_star_index: usize,
     pub point: Point,
@@ -15,6 +14,7 @@ pub struct VertexStar {
     pub link_map: HashMap<Point, usize>, // each Point in the link maps to its index in link_vec
 }
 
+#[derive(Debug)]
 pub enum VertexStarErr {
     BadProtoRef,
     BadRef,
@@ -25,10 +25,6 @@ pub enum VertexStarErr {
 impl VertexStar {
     pub fn new(atlas: &Atlas, point: Point, proto_vertex_star_index: usize, parity: bool, rotation: f64) -> VertexStar {
         let proto_vertex_star = atlas.proto_vertex_stars.get(proto_vertex_star_index).unwrap();
-        if proto_vertex_star_index == 0 {
-            println!("{} {} {} {}", point, proto_vertex_star_index, parity, fmt_float(rotation / TAU * 360., 2));
-            println!("{}", proto_vertex_star);
-        }
 
         let mut link_vec: Vec<Point> = Vec::with_capacity(proto_vertex_star.size());
 
@@ -128,18 +124,33 @@ impl VertexStar {
     }
 }
 
+#[derive(Debug)]
 pub enum TileDiff {
     Added,
     Removed,
 }
 
+#[derive(Debug)]
+pub struct PatchTile {
+    pub tile: Tile,
+    pub included: bool,
+}
+
+#[derive(Debug)]
 pub struct Patch {
     pub atlas: Atlas,
-    pub tiles: HashMap<Point, Tile>,
+    pub patch_tiles: HashMap<Point, PatchTile>,
     pub tile_diffs: HashMap<Tile, TileDiff>,
     pub vertex_stars: HashMap<Point, VertexStar>,
 }
 
+#[derive(Debug)]
+pub struct PMRQuadTree {
+    pub splitting_threshold: u8,
+    pub max_depth: u8,
+}
+
+#[derive(Debug)]
 pub enum PathErr {
     Missing(String),
     VertexStarErr(VertexStarErr),
@@ -162,44 +173,67 @@ impl Patch {
             atlas,
             vertex_stars,
             tile_diffs: HashMap::default(),
-            tiles: HashMap::default(),
+            patch_tiles: HashMap::default(),
         };
 
-        match patch.insert_adjacent_tile_by_edge((vertex_point_1, vertex_point_0)) {
+        match patch.insert_adjacent_tile_by_edge((vertex_point_1, vertex_point_0), true) {
             Ok(centroid) => Ok((patch, centroid)),
             Err(e) => Err(e),
         }
     }
 
     pub fn drain_tile_diffs(&mut self) -> HashMap<Tile, TileDiff> {
-        self.tile_diffs.drain().collect()
+        self.tile_diffs
+            .drain()
+            .collect()
     }
 
     pub fn drain_tiles(&mut self) -> HashMap<Tile, TileDiff> {
-        self.tiles.drain().into_iter().map(|(_, tile)| (tile, TileDiff::Removed)).collect()
+        self.patch_tiles
+            .drain()
+            .into_iter()
+            .map(|(_, patch_tile)| (patch_tile.tile, TileDiff::Removed))
+            .collect()
     }
+
+    // pub fn insert_tile_by_point(&mut self, point: Point) -> Result<Point, String> {}
 
     pub fn insert_adjacent_tile_by_point(&mut self, centroid: &Point, point: Point) -> Result<Point, String> {
-        let tile = match self.tiles.get(centroid) { Some(t) => t, None => return Err(String::from(format!("no Tile in Patch centered at {}", centroid))) };
-        let edge = tile.closest_edge(&point);
-        let t = tile.clone();
-        match self.insert_adjacent_tile_by_edge(edge) {
-            Ok(new_centroid) => Ok(new_centroid),
-            Err(e) => Err(String::from(format!("{}\n{}\n{}\n({},{})\n{}", centroid, point, t, edge.0, edge.1, e)))
-        }
+        let patch_tile = self.patch_tiles.get(centroid)
+            .ok_or(String::from(format!("no Tile in Patch centered at {}", centroid)))?;
+        let edge = patch_tile.tile.closest_edge(&point);
+        self.insert_adjacent_tile_by_edge(edge, true).map_err(|e| String::from(format!(
+            "{}\n{}\n({},{})\n{}",
+            centroid, point, edge.0, edge.1, e,
+        )))
     }
 
-    // insert_adjacent_tile_by_edge_index inserts a new Tile into this Patch
+    // insert_adjacent_tile_by_edge inserts a new Tile into this Patch
     // given a particular edge along which the Tile shares. In order to succeed,
     // both points in the edge are expected to be points of existing VertexStars
     // in this Patch. If both exist, the new Tile will be added starboard of the
     // edge drawn from start to stop.
-    fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point)) -> Result<Point, String> {
-        let start_vertex_star = match self.vertex_stars.get(&start) { Some(vs) => vs, None => return Err(String::from(format!("no VertexStar found at start {}\n{}", start, self))) };
-        let tile = match start_vertex_star.get_tile(&self.atlas, &stop) { Some(t) => t, None => return Err(String::from(format!("stop {} is not in the link of start {}\n{}", stop, start, self))) };
+    fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point), included: bool) -> Result<Point, String> {
+        let start_vertex_star = match self.vertex_stars.get(&start) { Some(vs) => vs, None => return Err(String::from(format!("no VertexStar found at start {}\n{:?}", start, self))) };
+        let tile = match start_vertex_star.get_tile(&self.atlas, &stop) { Some(t) => t, None => return Err(String::from(format!("stop {} is not in the link of start {}\n{:?}", stop, start, self))) };
         let tile_size = tile.size();
 
-        match self.tiles.insert(tile.centroid.clone(), tile.clone()) { None => self.tile_diffs.insert(tile.clone(), TileDiff::Added), Some(_) => return Ok(tile.centroid.clone()) };
+        match self.patch_tiles.insert(
+            tile.centroid.clone(),
+            PatchTile { tile: tile.clone(), included },
+        ) {
+            None => {
+                if included {
+                    self.tile_diffs.insert(tile.clone(), TileDiff::Added);
+                }
+            },
+            Some(patch_tile) => {
+                if included && !patch_tile.included {
+                    self.tile_diffs.insert(tile.clone(), TileDiff::Added);
+                }
+                return Ok(tile.centroid.clone())
+            },
+        };
 
         let mut link_points: Vec<(usize, Point)> = vec![(0, stop.clone()), (0, start.clone())];
         let mut new_link_points: Vec<(usize, Point)> = vec![];
@@ -207,69 +241,20 @@ impl Patch {
         let mut middle = start.clone();
 
         for _ in 0 .. tile_size - 1 {
-            let middle_vertex_star = match self.vertex_stars.get(&middle) { Some(vs) => vs, None => return Err(String::from(format!("missing VertexStar at {}\n{}", middle, self))) };
-            let forward_index = match middle_vertex_star.get_clockwise_adjacent_link_index(&reverse) { Some(i) => i, None => return Err(String::from(format!("no link point found clockwise adjacent of {} for VertexStar {}\n{}", reverse, middle, self))) };
-            let forward = match middle_vertex_star.link_vec.get(forward_index) { Some(p) => p.clone(), None => return Err(String::from(format!("out of bounds index {} in VertexStar {}\n{}", forward_index, middle, self))) };
+            let middle_vertex_star = match self.vertex_stars.get(&middle) { Some(vs) => vs, None => return Err(String::from(format!("missing VertexStar at {}\n{:?}", middle, self))) };
+            let forward_index = match middle_vertex_star.get_clockwise_adjacent_link_index(&reverse) { Some(i) => i, None => return Err(String::from(format!("no link point found clockwise adjacent of {} for VertexStar {}\n{:?}", reverse, middle, self))) };
+            let forward = match middle_vertex_star.link_vec.get(forward_index) { Some(p) => p.clone(), None => return Err(String::from(format!("out of bounds index {} in VertexStar {}\n{:?}", forward_index, middle, self))) };
             link_points.push((forward_index, forward));
             if let Some(vs) = self.vertex_stars.get(&forward) {
                 reverse = middle;
                 middle = vs.point.clone();
             } else {
-                let vs = match middle_vertex_star.get_neighbor_vertex_star(&self.atlas, forward_index) { Some(vs) => vs, None => return Err(String::from(format!("unable to create neighbor VertexStar of VertexStar {} for neighbor index {} at point {}\n{}", middle, forward_index, forward, self))) };
+                let vs = match middle_vertex_star.get_neighbor_vertex_star(&self.atlas, forward_index) { Some(vs) => vs, None => return Err(String::from(format!("unable to create neighbor VertexStar of VertexStar {} for neighbor index {} at point {}\n{:?}", middle, forward_index, forward, self))) };
                 reverse = middle;
                 middle = self.vertex_stars.entry(forward.clone()).or_insert({ new_link_points.push((forward_index, forward)); vs }).point.clone();
             }
         }
         Ok(tile.centroid.clone())
-    }
-}
-
-impl std::fmt::Display for VertexStarErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            VertexStarErr::BadRef => write!(f, "VertexStarErr: bad reference"),
-            VertexStarErr::BadProtoRef => write!(f, "VertexStarErr: bad proto reference"),
-            VertexStarErr::ComponentOutOfBounds(component_index, vertex_star_point) => write!(f, "VertexStarErr: component {} out of bounds in vertex star {}", component_index, vertex_star_point),
-            VertexStarErr::ProtoVertexStarErr(value) => write!(f, "VertexStarErr: {}", value),
-        }
-    }
-}
-
-impl std::fmt::Display for VertexStar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "VertexStar:\n- point: {}\n- proto_vertex_star_index: {}\n- parity: {}\n- rotation: {}\n- link: {}",
-            self.point,
-            self.proto_vertex_star_index,
-            self.parity,
-            fmt_float(self.rotation, 3),
-            self.link_vec.iter().map(|p| format!("{}", p)).collect::<Vec<String>>().join(", "),
-        )
-    }
-}
-
-impl std::fmt::Display for Patch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match writeln!(f, "Patch:") { Ok(_) => {}, Err(e) => return Err(e) }
-        for vertex_star in self.vertex_stars.values() {
-            match writeln!(f, "{}", vertex_star) { Ok(_) => {}, Err(e) => return Err(e) }
-            match writeln!(f, "- components:") { Ok(_) => {}, Err(e) => return Err(e) }
-        }
-        match writeln!(f, "\n- tiles:") { Ok(_) => {}, Err(e) => return Err(e) }
-        for (_, tile) in self.tiles.iter() {
-            match writeln!(f, "  - {}", tile) { Ok(_) => {}, Err(e) => return Err(e) }
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Display for PathErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PathErr::Missing(value) => write!(f, "PathErr: missing {}", value),
-            PathErr::VertexStarErr(value) => write!(f, "PathErr: {}", value),
-        }
     }
 }
 
@@ -479,7 +464,7 @@ mod tests {
         let _patch = match Patch::new(atlas) {
             Ok(_) => {},
             Err(e) => {
-                println!("{}", e);
+                println!("{:?}", e);
                 assert!(false);
             },
         };

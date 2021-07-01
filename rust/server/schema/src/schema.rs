@@ -40,6 +40,8 @@ table! {
         source_id -> Int4,
         sink_id -> Int4,
         parity -> Bool,
+        sequence -> Int4,
+        neighbor_edge_id -> Nullable<Int4>,
     }
 }
 

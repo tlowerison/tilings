@@ -1,12 +1,12 @@
 use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
 use float_cmp::ApproxEq;
-use geometry::{Euclid, Point, ORIGIN, Transformable};
+use geometry::{Euclid, ORIGIN, Transformable};
 use itertools::{Itertools, izip};
 use models;
-use std::{collections::HashSet, f64::consts::{PI, TAU}, iter};
+use std::{collections::HashSet, f64::consts::TAU, iter};
 use tile::ProtoTile;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProtoNeighbor {
     pub proto_vertex_star_index: usize,
     pub transform: VertexStarTransform,
@@ -15,13 +15,14 @@ pub struct ProtoNeighbor {
     pub reverse_tile_index: usize,
 }
 
+#[derive(Debug)]
 pub struct ProtoVertexStar {
     pub index: usize,
     pub proto_tiles: Vec<ProtoTile>,
     pub proto_neighbors: Vec<ProtoNeighbor>, // proto_neighbors[i].transform.translate == proto_edges[i].proto_tile.points[i+1]
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VertexStarTransform {
     pub parity: bool,
     pub translate: (f64, f64),
@@ -43,6 +44,7 @@ impl ProtoVertexStar {
     }
 }
 
+#[derive(Debug)]
 pub struct Atlas {
     pub proto_tiles: Vec<ProtoTile>,
     pub proto_vertex_stars: Vec<ProtoVertexStar>,
@@ -70,7 +72,7 @@ impl Atlas {
                 let point = match base_proto_tile.points.get(edge.point_index) {
                     Some(point) => point,
                     None => return Err(String::from(format!(
-                        "vertex {}, edge {} has missing point for index {} - ProtoTile == {}",
+                        "vertex {}, edge {} has missing point for index {} - ProtoTile == {:?}",
                         i,
                         j,
                         edge.point_index,
@@ -83,7 +85,7 @@ impl Atlas {
                 let next_point = match proto_tile.points.get((edge.point_index + 1) % base_proto_tile.size()) {
                     Some(point) => point.clone(),
                     None => return Err(String::from(format!(
-                        "vertex {}, edge {} has missing point for index {} - ProtoTile == {}",
+                        "vertex {}, edge {} has missing point for index {} - ProtoTile == {:?}",
                         i,
                         j,
                         (edge.point_index + 1) % base_proto_tile.size(),
@@ -100,7 +102,7 @@ impl Atlas {
                 rotation += angle;
             }
             if !rotation.approx_eq(TAU, DEFAULT_F64_MARGIN) {
-                return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{}", i, fmt_float(rotation * 360. / TAU, 2), vertex)))
+                return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{:?}", i, fmt_float(rotation * 360. / TAU, 2), vertex)))
             }
             all_proto_tiles.extend(iter::once(proto_tiles));
         }
@@ -122,7 +124,7 @@ impl Atlas {
 
                 proto_neighbors.extend(vec![ProtoNeighbor {
                     proto_vertex_star_index: edge.neighbor_index,
-                    neighbor_index: edge.polygon_index,
+                    neighbor_index: edge.neighbor_edge_index,
                     transform: VertexStarTransform {
                         parity: edge.parity,
                         translate: edge_point.values(),
@@ -152,109 +154,5 @@ impl Atlas {
             proto_vertex_stars,
             proto_tiles,
         })
-    }
-}
-
-// Display
-
-impl std::fmt::Display for ProtoNeighbor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} {} {}",
-            self.proto_vertex_star_index, self.neighbor_index, self.transform
-        )
-    }
-}
-
-impl std::fmt::Display for ProtoVertexStar {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match write!(f, "edges:\n") {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        }
-        for proto_tile in self.proto_tiles.iter() {
-            match write!(f, "{}\n", proto_tile) {
-                Ok(_) => {}
-                Err(e) => return Err(e),
-            }
-        }
-        match write!(f, "\n") {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        }
-        match write!(f, "neighbors:\n") {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        }
-        for proto_neighbor in self.proto_neighbors.iter() {
-            match write!(f, "{}\n", proto_neighbor) {
-                Ok(_) => {}
-                Err(e) => return Err(e),
-            }
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Display for Atlas {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let title = format!("Atlas");
-        match write!(f, "{}\n{}\n", title, "-".repeat(title.len())) {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        };
-        for (i, proto_vertex_star) in self.proto_vertex_stars.iter().enumerate() {
-            match write!(
-                f,
-                "adjacencies:\n{}: {}",
-                i,
-                proto_vertex_star
-                    .proto_neighbors
-                    .iter()
-                    .map(|proto_neighbor| format!(
-                        "({},{})",
-                        proto_neighbor.proto_vertex_star_index, proto_neighbor.neighbor_index
-                    ))
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            ) {
-                Ok(_) => {}
-                Err(e) => return Err(e),
-            };
-            match write!(f, "\n") {
-                Ok(_) => {}
-                Err(e) => return Err(e),
-            };
-        }
-        match write!(f, "\nvertex stars:\n") {
-            Ok(_) => {}
-            Err(e) => return Err(e),
-        };
-        for (i, proto_vertex_star) in self.proto_vertex_stars.iter().enumerate() {
-            match write!(f, "{}", proto_vertex_star) {
-                Ok(_) => {}
-                Err(e) => return Err(e),
-            };
-            if i < self.proto_vertex_stars.len() - 1 {
-                match write!(f, "\n") {
-                    Ok(_) => {}
-                    Err(e) => return Err(e),
-                };
-            }
-        }
-        Ok(())
-    }
-}
-
-impl std::fmt::Display for VertexStarTransform {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{{parity: {}, translate: {}, rotate: {}π}}",
-            self.parity,
-            Point::new(self.translate),
-            fmt_float(self.rotate / PI, 2)
-        )
     }
 }

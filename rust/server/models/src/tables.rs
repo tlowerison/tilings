@@ -369,6 +369,8 @@ crud! {
         source_id: i32,
         sink_id: i32,
         parity: bool,
+        sequence: i32,
+        neighbor_edge_id: Option<i32>,
     },
 
     "atlasvertex", atlasvertex, Atlas,

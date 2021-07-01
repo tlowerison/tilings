@@ -48,21 +48,21 @@ impl ProtoTile {
         let point = match points.get(point_index) {
             Some(point) => point,
             None => panic!(
-                "failed to find angle: index is out of bounds for ProtoTile {}",
+                "failed to find angle: index is out of bounds for ProtoTile {:?}",
                 self
             ),
         };
         let point1 = match points.get((point_index + (size - 1)) % size) {
             Some(point) => point,
             None => panic!(
-                "failed to find angle: preceding index is out of bounds for ProtoTile {}",
+                "failed to find angle: preceding index is out of bounds for ProtoTile {:?}",
                 self
             ),
         };
         let point2 = match points.get((point_index + 1) % size) {
             Some(point) => point,
             None => panic!(
-                "failed to find angle: succeeding index is out of bounds for ProtoTile {}",
+                "failed to find angle: succeeding index is out of bounds for ProtoTile {:?}",
                 self
             ),
         };
@@ -100,7 +100,7 @@ impl ProtoTile {
             .map(|(i, a)| {
                 let b = match self.points.get((i + 1) % size) {
                     Some(point) => point,
-                    None => panic!("could not find point {} for ProtoTile {}", i, self),
+                    None => panic!("could not find point {} for ProtoTile {:?}", i, self),
                 };
                 (b - a).norm()
             })
@@ -112,7 +112,7 @@ impl ProtoTile {
         {
             Some(max) => max,
             None => panic!(
-                "couldn't calc max actual side length for Prototile {}",
+                "couldn't calc max actual side length for Prototile {:?}",
                 self
             ),
         };
@@ -123,7 +123,7 @@ impl ProtoTile {
             {
                 Some(max) => max,
                 None => panic!(
-                    "couldn't calc max expected side length for Prototile {}",
+                    "couldn't calc max expected side length for Prototile {:?}",
                     self
                 ),
             };
@@ -207,21 +207,7 @@ impl<'a> Transformable<'a> for ProtoTile {
     }
 }
 
-impl std::fmt::Display for ProtoTile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[{}]",
-            self.points
-                .iter()
-                .map(|point| format!("{}", point))
-                .collect::<Vec<String>>()
-                .join(",")
-        )
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Tile {
     pub points: Vec<Point>,
     pub centroid: Point,
@@ -298,20 +284,6 @@ impl<'a> Transformable<'a> for Tile {
             centroid: self.centroid.transform(&affine),
             parity: self.parity ^ affine.is_flip(),
         }
-    }
-}
-
-impl std::fmt::Display for Tile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "[{}]",
-            self.points
-                .iter()
-                .map(|point| format!("{}", point))
-                .collect::<Vec<String>>()
-                .join(",")
-        )
     }
 }
 

@@ -7,7 +7,13 @@ global.client = Object.fromEntries(
   Object.entries(client)
     .map(([key, fn]: [string, Function]) => [
       key,
-      async (...args) => console.log(await fn(...args)),
+      async (...args) => {
+        try {
+          console.log(await fn(...args));
+        } catch (err) {
+          console.error(err);
+        }
+      },
     ])
 );
 
