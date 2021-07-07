@@ -8,15 +8,6 @@ use rocket::serde::json::Json;
 
 const BATCH_LIMIT: u32 = 1000;
 
-#[delete("/v1/label/<id>")]
-pub async fn delete_label(id: i32, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<usize>> {
-    db.run(move |conn| conn.build_transaction().run(|| {
-        auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
-        auth_account.verified(conn)?;
-        Label::delete(id, conn)
-    })).await.map(Json)
-}
-
 #[get("/v1/labels?<start_id>&<end_id>&<limit>")]
 pub async fn get_labels(start_id: Option<i32>, end_id: Option<i32>, limit: Option<u32>, db: DbConn) -> Result<Json<Vec<Label>>> {
     db.run(move |conn|
@@ -33,7 +24,14 @@ pub async fn match_labels(query: String, db: DbConn) -> Result<Json<Vec<Label>>>
 pub async fn upsert_label(label: String, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<Label>> {
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
-        auth_account.verified(conn)?;
         queries::upsert_label(label, conn)
+    })).await.map(Json)
+}
+
+#[delete("/v1/label/<id>")]
+pub async fn delete_label(id: i32, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<usize>> {
+    db.run(move |conn| conn.build_transaction().run(|| {
+        auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
+        queries::delete_label(id, conn)
     })).await.map(Json)
 }

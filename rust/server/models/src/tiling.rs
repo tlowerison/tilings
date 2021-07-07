@@ -1,4 +1,9 @@
-use crate::{from_data, tables::*};
+use crate::{
+    from_data,
+    tables::*,
+};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::atlas::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -19,21 +24,15 @@ pub struct FullSubTilingPost {
     pub label_ids: Option<Vec<i32>>,
 }
 
-impl FullSubTilingPost {
-    pub fn as_full_tiling_post(self, tiling_type_id: i32) -> FullTilingPost {
-        FullTilingPost {
-            tiling: TilingPost {
-                title: self.title,
-                tiling_type_id,
-            },
-            label_ids: self.label_ids,
-        }
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullTilingPatch {
     pub tiling: TilingPatch,
+    pub label_ids: Option<Vec<i32>>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct FullSubTilingPatch {
+    pub title: Option<String>,
     pub label_ids: Option<Vec<i32>>,
 }
 
@@ -41,6 +40,33 @@ from_data! {
     FullTiling,
     FullTilingPost,
     FullTilingPatch
+}
+
+impl FullSubTilingPost {
+    pub fn as_full_tiling_post(self, tiling_type_id: i32, owner_id: i32) -> FullTilingPost {
+        FullTilingPost {
+            tiling: TilingPost {
+                title: self.title,
+                owner_id: Some(owner_id),
+                tiling_type_id,
+            },
+            label_ids: self.label_ids,
+        }
+    }
+}
+
+impl FullSubTilingPatch {
+    pub fn as_full_tiling_patch(self, id: i32) -> FullTilingPatch {
+        FullTilingPatch {
+            tiling: TilingPatch {
+                id,
+                title: self.title,
+                owner_id: None,
+                tiling_type_id: None,
+            },
+            label_ids: self.label_ids,
+        }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -64,7 +90,17 @@ mod internal {
         }
 
         fn delete(id: i32, conn: &PgConnection) -> Result<usize> {
-            diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq(id))).execute(conn)?;
+            diesel::delete(tilinglabel::table.filter(tilinglabel::tiling_id.eq(id)))
+                .execute(conn)?;
+            let tiling = Tiling::find(id, conn)?;
+            match tiling.tiling_type_id {
+                2 => { // Atlas
+                    if let Ok(atlas) = atlas::table.filter(atlas::tiling_id.eq(id)).get_result::<Atlas>(conn) {
+                        FullAtlas::delete(atlas.id, conn)?;
+                    }
+                },
+                _ => {},
+            }
             Tiling::delete(id, conn)
         }
 

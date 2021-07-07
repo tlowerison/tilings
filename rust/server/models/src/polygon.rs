@@ -1,5 +1,7 @@
 use crate::{from_data, tables::*};
+use geometry::Point as ClientPoint;
 use serde::{Deserialize, Serialize};
+use tile::ProtoTile;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPoint {
@@ -26,6 +28,18 @@ pub struct FullPolygonPatch {
     pub polygon: PolygonPatch,
     pub label_ids: Option<Vec<i32>>, // if present, replace
     pub points: Option<Vec<PointPost>>, // if present, replace
+}
+
+impl FullPolygon {
+    pub fn into_proto_tile(&self) -> ProtoTile {
+        ProtoTile::new(
+            self
+                .points
+                .iter()
+                .map(|point| ClientPoint(point.point.x, point.point.y))
+                .collect()
+        )
+    }
 }
 
 from_data! {

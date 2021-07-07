@@ -1,16 +1,8 @@
-use auth::Role;
-use lazy_static::lazy_static;
 use percent_encoding;
 use result::{Error, Result};
 use rocket::http::Status;
-use std::collections::hash_set::HashSet;
 
 const INVALID_QUERY_STRING_ERR_MSG: &'static str = "Invalid query string.";
-
-lazy_static! {
-    pub static ref ALLOWED_EDITOR_ROLES: HashSet<Role> = [Role::Editor, Role::Admin].iter().cloned().collect();
-    pub static ref ALLOWED_ADMIN_ROLES: HashSet<Role> = [Role::Admin].iter().cloned().collect();
-}
 
 pub fn clamp_optional(max: u32, value: Option<u32>) -> u32 {
     match value {

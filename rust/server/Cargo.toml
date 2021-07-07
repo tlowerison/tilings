@@ -1,6 +1,6 @@
 [package]
 name = "server"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 

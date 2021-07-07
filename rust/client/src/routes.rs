@@ -333,6 +333,13 @@ get_delete! {
     },
     Query {},
 
+    "DELETE", "/api/tilings/v1/tiling/{}", delete_tiling, deleteTiling,
+    usize,
+    Params {
+        id: i32,
+    },
+    Query {},
+
     "GET", "/api/tilings/v1/tilings?start_id={}&end_id={}&limit={}", get_tilings, getTilings,
     Vec<models::Tiling>,
     Params {},
@@ -379,11 +386,41 @@ post_patch! {
     Query {},
     Data atlas_post: models::FullAtlasPost,
 
+    "PATCH", "/api/tilings/v1/atlas", update_atlas, updateAtlas,
+    models::FullAtlas,
+    Params {},
+    Query {},
+    Data atlas_post: models::FullAtlasPatch,
+
     "POST", "/api/tilings/v1/create-polygon", create_polygon, createPolygon,
     models::FullPolygon,
     Params {},
     Query {},
     Data full_polygon_post: models::FullPolygonPost,
+
+    "PATCH", "/api/tilings/v1/lock-atlas/{}", lock_atlas, lockAtlas,
+    (),
+    Params {
+        id: i32,
+    },
+    Query {},
+    Data,
+
+    "PATCH", "/api/tilings/v1/lock-polygon/{}", lock_polygon, lockPolygon,
+    (),
+    Params {
+        id: i32,
+    },
+    Query {},
+    Data,
+
+    "PATCH", "/api/tilings/v1/lock-tiling/{}", lock_tiling, lockTiling,
+    (),
+    Params {
+        id: i32,
+    },
+    Query {},
+    Data,
 
     "POST", "/api/tilings/v1/resend-verification-code-email", resend_verification_code_email, resendVerificationCodeEmail,
     (),
@@ -408,6 +445,12 @@ post_patch! {
     Params {},
     Query {},
     Data sign_in_post: models::AccountPost,
+
+    "PATCH", "/api/tilings/v1/tiling", update_tiling, updateTiling,
+    models::FullTiling,
+    Params {},
+    Query {},
+    Data atlas_post: models::FullTilingPatch,
 
     "POST", "/api/tilings/v1/update-polygon", update_polygon, updatePolygon,
     (),

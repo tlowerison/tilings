@@ -72,6 +72,7 @@ table! {
     polygon (id) {
         id -> Int4,
         title -> Varchar,
+        owner_id -> Nullable<Int4>,
     }
 }
 
@@ -104,6 +105,7 @@ table! {
         id -> Int4,
         title -> Varchar,
         tiling_type_id -> Int4,
+        owner_id -> Nullable<Int4>,
     }
 }
 
@@ -129,10 +131,12 @@ joinable!(atlas -> tiling (tiling_id));
 joinable!(atlasedge -> atlas (atlas_id));
 joinable!(atlasedge -> polygonpoint (polygon_point_id));
 joinable!(atlasvertex -> atlas (atlas_id));
+joinable!(polygon -> account (owner_id));
 joinable!(polygonlabel -> label (label_id));
 joinable!(polygonlabel -> polygon (polygon_id));
 joinable!(polygonpoint -> point (point_id));
 joinable!(polygonpoint -> polygon (polygon_id));
+joinable!(tiling -> account (owner_id));
 joinable!(tiling -> tilingtype (tiling_type_id));
 joinable!(tilinglabel -> label (label_id));
 joinable!(tilinglabel -> tiling (tiling_id));

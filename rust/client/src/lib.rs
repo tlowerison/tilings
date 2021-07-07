@@ -91,7 +91,7 @@ pub fn handleEvent(canvas: HtmlCanvasElement, x: f64, y: f64) -> JsValue {
 }
 
 fn patch_from_atlas(db_atlas: models::FullAtlas) -> Result<(Patch, Coloring, Point), JsValue> {
-    let atlas = Atlas::new(db_atlas).map_err(|e| JsValue::from_str(&e))?;
+    let atlas = Atlas::new(&db_atlas).map_err(|e| JsValue::from_str(&e))?;
     let (patch, cur_tile_centroid) = Patch::new(atlas).map_err(|e| JsValue::from_str(&e))?;
     let coloring = Coloring::new(&patch.atlas);
     Ok((patch, coloring, cur_tile_centroid))

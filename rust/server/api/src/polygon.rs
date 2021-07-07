@@ -12,7 +12,6 @@ const BATCH_LIMIT: u32 = 1000;
 pub async fn add_label_to_polygon(polygon_label_post: PolygonLabelPost, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<usize>> {
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
-        auth_account.verified(conn)?;
         queries::add_label_to_polygon(polygon_label_post, conn)
     })).await.map(Json)
 }
@@ -21,16 +20,22 @@ pub async fn add_label_to_polygon(polygon_label_post: PolygonLabelPost, mut auth
 pub async fn create_polygon(full_polygon_post: FullPolygonPost, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<FullPolygon>> {
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
-        auth_account.verified(conn)?;
         full_polygon_post.insert(conn)
+    })).await.map(Json)
+}
+
+#[patch("/v1/polygon", data="<full_polygon_patch>")]
+pub async fn update_polygon(full_polygon_patch: FullPolygonPatch, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<FullPolygon>> {
+    db.run(move |conn| conn.build_transaction().run(|| {
+        auth_account.can_edit(Owned::Polygon, full_polygon_patch.polygon.id, conn)?;
+        full_polygon_patch.update(conn)
     })).await.map(Json)
 }
 
 #[delete("/v1/polygon/<id>")]
 pub async fn delete_polygon(id: i32, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<usize>> {
     db.run(move |conn| conn.build_transaction().run(|| {
-        auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
-        auth_account.verified(conn)?;
+        auth_account.can_edit(Owned::Polygon, id, conn)?;
         FullPolygon::delete(id, conn)
     })).await.map(Json)
 }
@@ -47,11 +52,10 @@ pub async fn get_polygons(start_id: Option<i32>, end_id: Option<i32>, limit: Opt
     ).await.map(Json)
 }
 
-#[patch("/v1/polygon", data="<full_polygon_patch>")]
-pub async fn update_polygon(full_polygon_patch: FullPolygonPatch, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<FullPolygon>> {
+#[patch("/v1/lock-polygon/<id>")]
+pub async fn lock_polygon(id: i32, mut auth_account: AuthAccount, db: DbConn) -> Result<Json<()>> {
     db.run(move |conn| conn.build_transaction().run(|| {
-        auth_account.allowed(&ALLOWED_EDITOR_ROLES, conn)?;
-        auth_account.verified(conn)?;
-        full_polygon_patch.update(conn)
+        auth_account.allowed(&ALLOWED_ADMIN_ROLES, conn)?;
+        Owned::Polygon.lock(id, conn)
     })).await.map(Json)
 }

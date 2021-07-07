@@ -1,18 +1,26 @@
 [package]
 name = "models"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
+common = { path = "../../client/common" }
+float-cmp = "0.8.0"
+geometry = { path = "../../client/geometry" }
+indexmap = "1.6.2"
+itertools = "0.10.0"
 paste = "1.0.5"
+rmp-serde = "0.15.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
+tile = { path = "../../client/tile" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
 diesel = { version = "1.4.4" }
 itertools = "0.10.1"
+lazy_static = "1.4.0"
 result = { path = "../result" }
 rocket = { version = "0.5.0-rc.1" }
 schema = { path = "../schema" }

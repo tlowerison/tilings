@@ -15,7 +15,6 @@ use schema::accountrole;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_set::HashSet,
-    hash::Hash,
     ops::DerefMut,
 };
 
@@ -27,36 +26,10 @@ lazy_static! {
     static ref AUTHORIZATION_HEADER_VALUE_PREFIX_END_INDEX: usize = "Bearer ".len();
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub enum Role {
-    Admin,
-    Editor,
-    ReadOnly,
-}
-
-impl std::fmt::Display for Role {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Role::Admin => write!(f, "Admin"),
-            Role::Editor => write!(f, "Editor"),
-            Role::ReadOnly => write!(f, "ReadOnly"),
-        }
-    }
-}
-
-fn as_role(account_role: AccountRole) -> Option<Role> {
-    match account_role.role_id {
-        1 => Some(Role::ReadOnly),
-        2 => Some(Role::Editor),
-        3 => Some(Role::Admin),
-        _ => None,
-    }
-}
-
 pub struct AuthAccount {
     pub id: i32,
     account: Option<Account>,
-    roles: Option<HashSet<Role>>,
+    roles: Option<HashSet<RoleEnum>>,
 }
 
 impl<'a> AuthAccount {
@@ -64,7 +37,40 @@ impl<'a> AuthAccount {
         AuthAccount { id, account: None, roles: None }
     }
 
-    fn has_intersection(roles: &HashSet<Role>, allowed_roles: &HashSet<Role>) -> bool {
+    pub fn allowed(&mut self, allowed_roles: &HashSet<RoleEnum>, conn: &PgConnection) -> Result<bool> {
+        self.pull_roles(conn)?;
+        if AuthAccount::has_intersection(self.roles.as_ref().unwrap(), allowed_roles) && self.verified(conn)? {
+            Ok(true)
+        } else {
+            Err(Error::Unauthorized)
+        }
+    }
+
+    pub fn can_edit(&mut self, owned: Owned, id: i32, conn: &PgConnection) -> Result<bool> {
+        if let Ok(_) = self.allowed(&ALLOWED_ADMIN_ROLES, conn) {
+            return Ok(true)
+        }
+
+        self.allowed(&ALLOWED_EDITOR_ROLES, conn).or(Err(Error::Unauthorized))?;
+
+        let owner_id = owned.get_owner_id(id, conn)?;
+        if let Some(owner_id) = owner_id {
+            if owner_id == self.id {
+                return Ok(true)
+            }
+        }
+
+        Err(Error::Unauthorized)
+    }
+
+    pub fn get_account(&'a mut self, conn: &PgConnection) -> Result<&'a Account> {
+        if let None = self.account {
+            self.account = Some(Account::find(self.id, conn)?);
+        }
+        Ok(self.account.as_ref().unwrap())
+    }
+
+    fn has_intersection(roles: &HashSet<RoleEnum>, allowed_roles: &HashSet<RoleEnum>) -> bool {
         for role in roles.iter() {
             if allowed_roles.contains(role) {
                 return true
@@ -82,30 +88,14 @@ impl<'a> AuthAccount {
 
         self.roles = Some(account_roles
             .into_iter()
-            .filter_map(|account_role| as_role(account_role))
+            .filter_map(AccountRole::as_role_enum)
             .collect()
         );
 
         Ok(())
     }
 
-    pub fn get_account(&'a mut self, conn: &PgConnection) -> Result<&'a Account> {
-        if let None = self.account {
-            self.account = Some(Account::find(self.id, conn)?);
-        }
-        Ok(self.account.as_ref().unwrap())
-    }
-
-    pub fn allowed(&mut self, allowed_roles: &HashSet<Role>, conn: &PgConnection) -> Result<bool> {
-        self.pull_roles(conn)?;
-        if AuthAccount::has_intersection(self.roles.as_ref().unwrap(), allowed_roles) {
-            Ok(true)
-        } else {
-            Err(Error::Unauthorized)
-        }
-    }
-
-    pub fn verified(&mut self, conn: &PgConnection) -> Result<bool> {
+    fn verified(&mut self, conn: &PgConnection) -> Result<bool> {
         self.get_account(conn)?;
         if self.account.as_ref().unwrap().verified {
             Ok(true)

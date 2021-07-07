@@ -138,6 +138,11 @@ pub fn sign_up(account_post: AccountPost, conn: &PgConnection) -> Result<Account
             String::from(EMAIL_DISPLAY_NAME_TAKEN_ERR_MSG),
         )))?;
 
+    AccountRolePost {
+        account_id: account.id,
+        role_id: RoleEnum::Editor.as_role_id(),
+    }.insert(conn)?;
+
     Ok(account)
 }
 

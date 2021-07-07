@@ -1,4 +1,4 @@
-use atlas::*;
+use atlas::Atlas;
 use colourado::{ColorPalette, PaletteType};
 use itertools::*;
 use plotters::style::RGBColor;

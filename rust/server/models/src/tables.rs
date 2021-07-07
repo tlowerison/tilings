@@ -7,9 +7,15 @@ use diesel::{
     prelude::*,
     result::Error::QueryBuilderError,
 };
-#[cfg(not(target_arch = "wasm32"))] use result::{Error, Result};
-#[cfg(not(target_arch = "wasm32"))] use schema::*;
-#[cfg(not(target_arch = "wasm32"))] use std::hash::{Hash, Hasher};
+
+#[cfg(not(target_arch = "wasm32"))]
+use result::{Error, Result};
+
+#[cfg(not(target_arch = "wasm32"))]
+use schema::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::hash::{Hash, Hasher};
 
 #[cfg(target_arch = "wasm32")]
 mod internal {
@@ -327,13 +333,14 @@ mod internal {
 pub use self::internal::*;
 use crate::crud;
 
-fn none_bool() -> Option<bool> { None }
-fn none_i32() -> Option<i32> { None }
-fn none_opt_string() -> Option<Option<String>> { None }
+pub fn none_bool() -> Option<bool> { None }
+pub fn none_i32() -> Option<i32> { None }
+pub fn none_opt_i32() -> Option<Option<i32>> { None }
+pub fn none_opt_string() -> Option<Option<String>> { None }
 
-pub fn default_account_verified() -> bool { false }
 pub fn default_account_verification_code() -> Option<String> { None }
 pub fn default_atlas_tiling_type_id() -> i32 { 2 }
+pub fn default_false() -> bool { false }
 
 crud! {
     "account", account,,
@@ -341,7 +348,7 @@ crud! {
         email: String,
         password: String,
         display_name: String,
-        #[serde(skip_deserializing)] { "default_account_verified", "none_bool" }
+        #[serde(skip_deserializing)] { "default_false", "none_bool" }
         verified: bool,
         #[serde(skip_deserializing)] { "default_account_verification_code", "none_opt_string" }
         verification_code: Option<String>,
@@ -396,6 +403,8 @@ crud! {
     "polygon", polygon,,
     struct Polygon {
         title: String,
+        #[serde(skip_deserializing, skip_serializing)] { "none_i32", "none_opt_i32" }
+        owner_id: Option<i32>,
     },
 
     "polygonlabel", polygonlabel, Polygon Label,
@@ -420,6 +429,8 @@ crud! {
     struct Tiling {
         title: String,
         tiling_type_id: i32,
+        #[serde(skip_deserializing, skip_serializing)] { "none_i32", "none_opt_i32" }
+        owner_id: Option<i32>,
     },
 
     "tilinglabel", tilinglabel, Tiling Label,
@@ -433,3 +444,108 @@ crud! {
         title: String,
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+mod impls {
+    use super::*;
+    use lazy_static::lazy_static;
+    use std::collections::hash_set::HashSet;
+
+    #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+    pub enum RoleEnum {
+        Admin,
+        Editor,
+        ReadOnly,
+    }
+
+    impl RoleEnum {
+        pub fn as_role_id(self) -> i32 {
+            match self {
+                RoleEnum::Admin => 3,
+                RoleEnum::Editor => 2,
+                RoleEnum::ReadOnly => 1,
+            }
+        }
+    }
+
+    impl std::fmt::Display for RoleEnum {
+        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            match self {
+                RoleEnum::Admin => write!(f, "Admin"),
+                RoleEnum::Editor => write!(f, "Editor"),
+                RoleEnum::ReadOnly => write!(f, "ReadOnly"),
+            }
+        }
+    }
+
+    impl AccountRole {
+        pub fn as_role_enum(account_role: AccountRole) -> Option<RoleEnum> {
+            match account_role.role_id {
+                1 => Some(RoleEnum::ReadOnly),
+                2 => Some(RoleEnum::Editor),
+                3 => Some(RoleEnum::Admin),
+                _ => None,
+            }
+        }
+    }
+
+    lazy_static! {
+        pub static ref ALLOWED_EDITOR_ROLES: HashSet<RoleEnum> = [RoleEnum::Editor, RoleEnum::Admin].iter().cloned().collect();
+        pub static ref ALLOWED_ADMIN_ROLES: HashSet<RoleEnum> = [RoleEnum::Admin].iter().cloned().collect();
+    }
+
+    pub enum Owned {
+        Atlas,
+        Polygon,
+        Tiling,
+    }
+
+    impl Owned {
+        pub fn get_owner_id(&self, id: i32, conn: &PgConnection) -> Result<Option<i32>> {
+            match self {
+                Owned::Atlas => atlas::table.filter(atlas::id.eq(id))
+                    .inner_join(tiling::table)
+                    .select(tiling::owner_id)
+                    .get_result(conn)
+                    .map_err(Error::from),
+
+                Owned::Polygon => polygon::table.filter(polygon::id.eq(id))
+                    .select(polygon::owner_id)
+                    .get_result(conn)
+                    .map_err(Error::from),
+
+                Owned::Tiling => tiling::table.filter(tiling::id.eq(id))
+                    .select(tiling::owner_id)
+                    .get_result(conn)
+                    .map_err(Error::from),
+            }
+        }
+
+        pub fn lock(&self, id: i32, conn: &PgConnection) -> Result<()> {
+            match self {
+                Owned::Atlas => {
+                    let tiling_id = atlas::table.filter(atlas::id.eq(id))
+                        .select(atlas::tiling_id)
+                        .get_result(conn)?;
+                    Owned::Tiling.lock(tiling_id, conn)
+                },
+
+                Owned::Polygon => PolygonPatch {
+                    id,
+                    owner_id: Some(None),
+                    title: None,
+                }.update(conn).and(Ok(())),
+
+                Owned::Tiling => TilingPatch {
+                    id,
+                    owner_id: Some(None),
+                    title: None,
+                    tiling_type_id: None,
+                }.update(conn).and(Ok(())),
+            }
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use self::impls::*;

@@ -123,6 +123,7 @@ mod lib {
                     message: String::from(UNAUTHORIZED_ERR_MSG),
                     status: Status::Unauthorized,
                 },
+                Error::Custom(status, message) => Response { message, status },
                 _ => Response {
                     message: String::from(INTERNAL_SERVER_ERR_MSG),
                     status: Status::InternalServerError,

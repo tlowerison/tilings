@@ -1,6 +1,7 @@
 #![recursion_limit="1024"]
 
-#[macro_use] extern crate diesel;
+#[macro_use]
+extern crate diesel;
 
 mod schema;
 

@@ -1,4 +1,4 @@
-use crate::atlas::{ProtoNeighbor, ProtoVertexStar, Atlas};
+use crate::atlas::{Atlas, ProtoNeighbor, ProtoVertexStar};
 use common::*;
 use geometry::{Affine, Euclid, Point, Transform, Transformable};
 use std::collections::HashMap;

@@ -18,3 +18,11 @@ pub fn upsert_label(content: String, conn: &PgConnection) -> Result<Label> {
     }
     LabelPost { content }.insert(conn)
 }
+
+pub fn delete_label(id: i32, conn: &PgConnection) -> Result<usize> {
+    diesel::delete(polygonlabel::table.filter(polygonlabel::label_id.eq(id)))
+        .execute(conn)?;
+    diesel::delete(tilinglabel::table.filter(tilinglabel::label_id.eq(id)))
+        .execute(conn)?;
+    Label::delete(id, conn)
+}
