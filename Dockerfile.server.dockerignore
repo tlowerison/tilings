@@ -1,3 +1,5 @@
 *
 
-!/rust/server
+!/rust
+/rust/**/*.env
+/rust/target

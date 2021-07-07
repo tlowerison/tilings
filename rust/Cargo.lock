@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "api"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "async-std",
  "auth",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "common",
  "float-cmp",
@@ -303,7 +303,7 @@ dependencies = [
 
 [[package]]
 name = "auth"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "async-std",
  "base64",
@@ -475,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "atlas",
  "colourado",
@@ -544,7 +544,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "float-cmp",
  "itertools",
@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "db_conn"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "diesel",
  "rocket_sync_db_pools",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "geometry"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "common",
  "float-cmp",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "async-std",
  "common",
@@ -2012,7 +2012,7 @@ dependencies = [
 
 [[package]]
 name = "queries"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "async-std",
  "auth",
@@ -2319,7 +2319,7 @@ dependencies = [
 
 [[package]]
 name = "result"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "diesel",
  "paste",
@@ -2527,7 +2527,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "diesel",
 ]
@@ -2633,7 +2633,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "api",
  "db_conn",
@@ -2836,7 +2836,7 @@ dependencies = [
 
 [[package]]
 name = "tile"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "common",
  "float-cmp",
