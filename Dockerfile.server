@@ -22,7 +22,7 @@ FROM ubuntu
   RUN apt-get update
   RUN apt-get -y install postgresql-client-13
 
-  COPY --from=build-rust /app/rust/server/target/release/server /app/server
+  COPY --from=build-rust /app/rust/target/release/server /app/server
 
   EXPOSE 8000
   CMD ["/app/server"]
