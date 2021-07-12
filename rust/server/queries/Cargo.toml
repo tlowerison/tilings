@@ -1,6 +1,6 @@
 [package]
 name = "queries"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
