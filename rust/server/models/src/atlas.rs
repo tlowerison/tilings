@@ -7,7 +7,7 @@ use crate::{
 use crate::tables::*;
 use crate::tables::none_i32;
 #[cfg(not(target_arch = "wasm32"))]
-use schema::atlasedge;
+use schema::{atlasedge, polygonpoint};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -93,7 +93,19 @@ mod internal {
         vertices: Vec<FullAtlasVertexPost>,
         conn: &PgConnection,
     ) -> Result<()> {
-        let full_polygons = FullPolygon::find_batch(polygon_ids, conn)?;
+        let polygon_sequence = polygon_ids
+            .iter()
+            .enumerate()
+            .map(|(sequence, polygon_id)| (polygon_id.clone(), sequence))
+            .collect::<HashMap<i32, usize>>();
+
+        let full_polygons = FullPolygon::find_batch(polygon_ids, conn)?
+            .into_iter()
+            .sorted_by(|a, b| Ord::cmp(
+                polygon_sequence.get(&a.polygon.id).ok_or(Error::Default).unwrap(),
+                polygon_sequence.get(&b.polygon.id).ok_or(Error::Default).unwrap(),
+            ))
+            .collect::<Vec<FullPolygon>>();
 
         let atlas_vertices = vertices
             .iter()
@@ -175,22 +187,19 @@ mod internal {
                 .map(|atlas_edge| (atlas_edge.id, atlas_edge.sequence))
                 .collect::<HashMap<i32, i32>>();
 
-            let all_polygon_points = PolygonPoint::find_batch(
-                all_atlas_edges
-                    .iter()
-                    .map(|atlas_edge| atlas_edge.polygon_point_id)
-                    .collect(),
-                conn,
-            )?;
+            let polygon_ids = polygonpoint::table.filter(
+                polygonpoint::id.eq_any(
+                    all_atlas_edges
+                        .iter()
+                        .map(|atlas_edge| atlas_edge.polygon_point_id)
+                        .collect::<Vec<i32>>()
+                )
+            )
+                .select(polygonpoint::polygon_id)
+                .distinct_on(polygonpoint::polygon_id)
+                .get_results::<i32>(conn)?;
 
-            let full_polygons = FullPolygon::find_batch(
-                all_polygon_points
-                    .iter()
-                    .map(|polygon_point| polygon_point.polygon_id)
-                    .unique()
-                    .collect(),
-                conn,
-            )?;
+            let full_polygons = FullPolygon::find_batch(polygon_ids.clone(), conn)?;
 
             let polygon_and_point_indices_by_polygon_point_id = full_polygons
                 .iter()
@@ -467,7 +476,7 @@ pub mod client {
                     rotation += angle;
                 }
                 if !rotation.approx_eq(TAU, DEFAULT_F64_MARGIN) {
-                    return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{:?}", i, fmt_float(rotation * 360. / TAU, 2), vertex)))
+                    return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{:#?}\n{:#?}", i, fmt_float(rotation * 360. / TAU, 2), vertex, proto_tiles)))
                 }
                 all_proto_tiles.extend(iter::once(proto_tiles));
             }

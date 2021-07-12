@@ -38,7 +38,6 @@ pub async fn update_atlas(full_atlas_patch: FullAtlasPatch, mut auth_account: Au
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.can_edit(Owned::Atlas, full_atlas_patch.id, conn)?;
         full_atlas_patch.update(conn)
-
     })).await.map(Json)
 }
 
@@ -47,7 +46,6 @@ pub async fn delete_atlas(id: i32, mut auth_account: AuthAccount, db: DbConn) ->
     db.run(move |conn| conn.build_transaction().run(|| {
         auth_account.can_edit(Owned::Atlas, id, conn)?;
         FullAtlas::delete(id, conn)
-
     })).await.map(Json)
 }
 

@@ -68,7 +68,13 @@ pub async fn sign_in(sign_in_post: SignInPost, db: DbConn, jar: &CookieJar<'_>, 
     let cookie_value_clone = cookie_value.clone(); // must clone prior to async call
     let account_id = db.run(move |conn| queries::sign_in(sign_in_post.email, sign_in_post.password, conn)).await?;
     store_account_id_in_redis(cookie_value, account_id, redis_conn)?;
-    jar.add_private(Cookie::new(COOKIE_KEY, cookie_value_clone));
+    jar.add_private(
+        Cookie::build(COOKIE_KEY, cookie_value_clone)
+            .path("/")
+            .secure(true)
+            .http_only(true)
+            .finish()
+    );
     Ok(Json(()))
 }
 
@@ -91,7 +97,13 @@ pub async fn sign_up(account_post: AccountPost, db: DbConn, jar: &CookieJar<'_>,
     let cookie_value_clone = cookie_value.clone(); // must clone prior to async call
     let account = db.run(move |conn| conn.build_transaction().run(|| queries::sign_up(account_post, conn))).await?;
     store_account_id_in_redis(cookie_value, account.id, redis_conn)?;
-    jar.add_private(Cookie::new(COOKIE_KEY, cookie_value_clone));
+    jar.add_private(
+        Cookie::build(COOKIE_KEY, cookie_value_clone)
+            .path("/")
+            .secure(true)
+            .http_only(true)
+            .finish()
+    );
     task::spawn(send_verification_code_email(account));
     Ok(Json(()))
 }
