@@ -1,6 +1,6 @@
 [package]
 name = "client"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
@@ -18,6 +18,7 @@ paste = "1.0.5"
 percent-encoding = "2.1.0"
 plotters = "0.3.0"
 plotters-canvas = "0.3.0"
+pmr_quad_tree = { path = "./pmr_quad_tree" }
 rand = { version = "0.6.5", features = ["wasm-bindgen"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"

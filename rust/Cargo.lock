@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "api"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "async-std",
  "auth",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "common",
  "float-cmp",
@@ -269,6 +269,7 @@ dependencies = [
  "indexmap",
  "itertools",
  "models",
+ "pmr_quad_tree",
  "rmp-serde",
  "serde",
  "serde_json",
@@ -303,7 +304,7 @@ dependencies = [
 
 [[package]]
 name = "auth"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "async-std",
  "base64",
@@ -475,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "atlas",
  "colourado",
@@ -490,6 +491,7 @@ dependencies = [
  "percent-encoding",
  "plotters",
  "plotters-canvas",
+ "pmr_quad_tree",
  "rand 0.6.5",
  "serde",
  "serde_json",
@@ -544,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "float-cmp",
  "itertools",
@@ -723,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "db_conn"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "diesel",
  "rocket_sync_db_pools",
@@ -1164,10 +1166,11 @@ dependencies = [
 
 [[package]]
 name = "geometry"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "common",
  "float-cmp",
+ "itertools",
  "num-traits",
 ]
 
@@ -1578,7 +1581,7 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "async-std",
  "common",
@@ -1926,6 +1929,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pmr_quad_tree"
+version = "0.2.6"
+dependencies = [
+ "common",
+ "float-cmp",
+ "geometry",
+ "tile",
+]
+
+[[package]]
 name = "png"
 version = "0.16.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2012,7 +2025,7 @@ dependencies = [
 
 [[package]]
 name = "queries"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "async-std",
  "auth",
@@ -2217,7 +2230,7 @@ dependencies = [
 
 [[package]]
 name = "rate_limiter"
-version = "0.1.0"
+version = "0.2.6"
 dependencies = [
  "api",
  "async-std",
@@ -2319,7 +2332,7 @@ dependencies = [
 
 [[package]]
 name = "result"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "diesel",
  "paste",
@@ -2527,7 +2540,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "diesel",
 ]
@@ -2633,7 +2646,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "api",
  "db_conn",
@@ -2836,7 +2849,7 @@ dependencies = [
 
 [[package]]
 name = "tile"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "common",
  "float-cmp",

@@ -1,9 +1,12 @@
 use crate::{
     affine::{Affine, IDENTITY_AFFINE},
+    bounds::{Bounds, Spatial},
+    edge::Edge,
     transform::{Transform, Transformable},
 };
 use common::{DEFAULT_F64_MARGIN, fmt_float, rad};
 use float_cmp::{ApproxEq, F64Margin};
+use itertools::izip;
 use num_traits::cast::NumCast;
 use std::{
     hash::{Hash, Hasher},
@@ -18,6 +21,15 @@ pub const DISPLAY_PRECISION: u32 = 2;
 pub struct Point(pub f64, pub f64);
 
 impl Point {
+    pub fn edges<'a>(points: &'a Vec<Point>) -> Vec<Edge<'a>> {
+        izip!(
+            points.iter().cycle().take(points.len()),
+            points.iter().cycle().skip(1).take(points.len()),
+        )
+            .map(|(point1, point2)| Edge(point1, point2))
+            .collect()
+    }
+
     pub fn new(values: (f64, f64)) -> Point {
         Point(values.0, values.1)
     }
@@ -106,6 +118,25 @@ impl PartialEq for Point {
     fn eq(&self, other: &Self) -> bool {
         self.0.approx_eq(other.0, DEFAULT_F64_MARGIN)
             && self.1.approx_eq(other.1, DEFAULT_F64_MARGIN)
+    }
+}
+
+impl Spatial for Point {
+    type Hashed = Point;
+
+    fn distance(&self, point: &Point) -> f64 {
+        (self - point).norm()
+    }
+
+    fn intersects(&self, bounds: &Bounds) -> bool {
+        (self.0 <= bounds.center.0 + bounds.radius) &&
+        (self.0  > bounds.center.0 - bounds.radius) &&
+        (self.1 <= bounds.center.1 + bounds.radius) &&
+        (self.1  > bounds.center.1 - bounds.radius)
+    }
+
+    fn key(&self) -> Self::Hashed {
+        self.clone()
     }
 }
 

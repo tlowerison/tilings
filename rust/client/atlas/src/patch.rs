@@ -1,7 +1,14 @@
 use crate::atlas::{Atlas, ProtoNeighbor, ProtoVertexStar};
 use common::*;
-use geometry::{Affine, Euclid, Point, Transform, Transformable};
-use std::collections::HashMap;
+use geometry::{Affine, Bounds, Euclid, Point, Spatial, Transform, Transformable};
+use itertools::izip;
+use pmr_quad_tree::{Config as TreeConfig, Tree};
+use std::{
+    borrow::Borrow,
+    collections::{HashMap, VecDeque},
+    iter,
+    f64::consts::TAU,
+};
 use tile::Tile;
 
 #[derive(Clone, Debug)]
@@ -12,6 +19,8 @@ pub struct VertexStar {
     pub rotation: f64, // argument of VertexStar's first neighbor relative to the VertexStar's point
     pub link_vec: Vec<Point>, // points of VertexStar's neighboring VertexStars
     pub link_map: HashMap<Point, usize>, // each Point in the link maps to its index in link_vec
+    pub link_args: Vec<f64>, // arg of each link Point relative to the central point
+    pub link_arg_offset: usize,
 }
 
 #[derive(Debug)]
@@ -36,6 +45,27 @@ impl VertexStar {
         let mut link_map: HashMap<Point, usize> = HashMap::with_capacity(proto_vertex_star.size());
         link_map.extend(link_vec.iter().enumerate().map(|(i, point)| (point.clone(), i)));
 
+        let mut link_args_deque = link_vec.iter().map(|link_point| (link_point - &point).arg()).collect::<VecDeque<f64>>();
+        println!("{:?}", link_args_deque.iter().map(|la| fmt_float::<f64>(*la, 2)).collect::<Vec<String>>());
+        let mut link_arg_offset = 0;
+        for (i, (arg_0, arg_1)) in izip!(link_args_deque.iter().take(link_args_deque.len() - 1), link_args_deque.iter().skip(1)).enumerate() {
+            if arg_1 < arg_0 {
+                link_args_deque.rotate_left(i + 1);
+                link_arg_offset = i + 1;
+                break
+            }
+        }
+
+        let wrapped_left_arg = link_args_deque.get(link_vec.len() - 1).unwrap() - TAU;
+        let wrapped_right_arg = link_args_deque.get(0).unwrap() + TAU;
+
+        let mut link_args: Vec<f64> = Vec::with_capacity(proto_vertex_star.size() + 2);
+        link_args.extend(
+            iter::once(wrapped_left_arg)
+                .chain(link_args_deque.into_iter())
+                .chain(iter::once(wrapped_right_arg))
+        );
+
         VertexStar {
             point,
             proto_vertex_star_index,
@@ -43,6 +73,8 @@ impl VertexStar {
             rotation,
             link_vec,
             link_map,
+            link_args,
+            link_arg_offset,
         }
     }
 
@@ -119,9 +151,48 @@ impl VertexStar {
         self.parity ^ parity
     }
 
+    // nearest_neighbor returns the neighbor_vertex_star closest to the provided point
+    // as well as the point in this vertex star which is counter-clockwise of that point
+    pub fn nearest_neighbor<'a>(&'a self, atlas: &Atlas, point: &Point) -> Option<VertexStar> {
+        let arg = (point - &self.point).arg();
+        let link_vec_index = (
+            match self.link_args.binary_search_by(|link_arg| link_arg.partial_cmp(&arg).unwrap()) { Ok(i) => i, Err(i) => i }
+            + self.size()
+            + self.link_arg_offset
+            - 1
+        ) % self.size();
+
+        println!("{} {:?} : {} -> {}", fmt_float::<f64>(arg, 2), self.link_args.iter().map(|la| fmt_float::<f64>(*la, 2)).collect::<Vec<String>>(), match self.link_args.binary_search_by(|link_arg| link_arg.partial_cmp(&arg).unwrap()) { Ok(i) => i, Err(i) => i }, link_vec_index);
+        // println!("{:?}", self.link_vec);
+        // let closest_two = (self.link_args.get(link_vec_insert_index).unwrap(), self.link_args.get(link_vec_insert_index + 1).unwrap());
+
+        // let index = if arg - closest_two.0 < closest_two.1 - arg { index - 1 } else { index };
+        // let mut index = (index + self.link_arg_offset + self.size() - 1) % self.size();
+
+        // if Point::angle(self.link_vec.get(index).unwrap(), &self.point, point) >= PI {
+        //     index = (index + 1 + self.link_arg_offset + self.size() - 1) % self.size();
+        // }
+
+        // println!(
+        //     "{} {} {}",
+        //     self.link_vec.get((index + self.size() - 1) % self.size()).unwrap(),
+        //     self.link_vec.get((index + self.size() + 0) % self.size()).unwrap(),
+        //     self.link_vec.get((index + self.size() + 1) % self.size()).unwrap(),
+        // );
+
+        self.get_neighbor_vertex_star(atlas, link_vec_index)
+    }
+
     pub fn size(&self) -> usize {
         self.link_map.len()
     }
+}
+
+impl Spatial for VertexStar {
+    type Hashed = Point;
+    fn distance(&self, point: &Point) -> f64 { self.point.distance(point) }
+    fn intersects(&self, bounds: &Bounds) -> bool { self.point.intersects(bounds) }
+    fn key(&self) -> Self::Hashed { self.point.key() }
 }
 
 #[derive(Debug)]
@@ -136,50 +207,32 @@ pub struct PatchTile {
     pub included: bool,
 }
 
+impl Spatial for PatchTile {
+    type Hashed = Point;
+    fn distance(&self, point: &Point) -> f64 { self.tile.distance(point) }
+    fn intersects(&self, bounds: &Bounds) -> bool { self.tile.intersects(bounds) }
+    fn key(&self) -> Self::Hashed { self.tile.key() }
+}
+
 #[derive(Debug)]
 pub struct Patch {
     pub atlas: Atlas,
-    pub patch_tiles: HashMap<Point, PatchTile>,
     pub tile_diffs: HashMap<Tile, TileDiff>,
-    pub vertex_stars: HashMap<Point, VertexStar>,
-}
-
-#[derive(Debug)]
-pub struct PMRQuadTree {
-    pub splitting_threshold: u8,
-    pub max_depth: u8,
-}
-
-#[derive(Debug)]
-pub enum PathErr {
-    Missing(String),
-    VertexStarErr(VertexStarErr),
+    pub vertex_stars: Tree<Point, VertexStar>,
+    pub patch_tiles: Tree<Point, PatchTile>,
 }
 
 impl Patch {
     // new creates a new Patch and inserts a single VertexStar and its first Tile
-    pub fn new(atlas: Atlas) -> Result<(Patch, Point), String> {
-        let mut vertex_stars: HashMap<Point, VertexStar> = HashMap::default();
-
-        let vertex_star_0 = VertexStar::new(&atlas, Point(0., 0.), 0, false, 0.);
-        let vertex_star_1 = vertex_star_0.get_neighbor_vertex_star(&atlas, 0).unwrap();
-        let vertex_point_0 = vertex_star_0.point.clone();
-        let vertex_point_1 = vertex_star_1.point.clone();
-
-        vertex_stars.insert(vertex_point_0, vertex_star_0);
-        vertex_stars.insert(vertex_point_1, vertex_star_1);
-
-        let mut patch = Patch {
+    pub fn new(atlas: Atlas, tile_tree_config: TreeConfig, vertex_star_tree_config: TreeConfig) -> Result<Patch, String> {
+        let mut vertex_stars: Tree<Point, VertexStar> = Tree::new(vertex_star_tree_config);
+        vertex_stars.insert(VertexStar::new(&atlas, Point(0., 0.), 0, false, 0.));
+        Ok(Patch {
             atlas,
             vertex_stars,
             tile_diffs: HashMap::default(),
-            patch_tiles: HashMap::default(),
-        };
-
-        match patch.insert_adjacent_tile_by_edge((vertex_point_1, vertex_point_0), true) {
-            Ok(centroid) => Ok((patch, centroid)),
-            Err(e) => Err(e),
-        }
+            patch_tiles: Tree::new(tile_tree_config),
+        })
     }
 
     pub fn drain_tile_diffs(&mut self) -> HashMap<Tile, TileDiff> {
@@ -188,24 +241,36 @@ impl Patch {
             .collect()
     }
 
-    pub fn drain_tiles(&mut self) -> HashMap<Tile, TileDiff> {
-        self.patch_tiles
-            .drain()
-            .into_iter()
-            .map(|(_, patch_tile)| (patch_tile.tile, TileDiff::Removed))
-            .collect()
-    }
+    pub fn insert_tile_by_point(&mut self, point: Point) -> Result<(), String> {
+        let mut nearest_vertex_star_neighbor = self.vertex_stars.nearest_neighbor(&point).map_err(|e| format!("no nearby vertex stars:\n{}\n{:?}\n{:#?}", e, point, self.vertex_stars))?;
+        let mut nearest_vertex_star_neighbor_rc = nearest_vertex_star_neighbor.item.upgrade();
+        let mut nearest_vertex_star_rc = nearest_vertex_star_neighbor_rc.ok_or("vertex star doesn't exist")?;
+        let mut nearest_vertex_star = nearest_vertex_star_rc.as_ref().borrow();
 
-    // pub fn insert_tile_by_point(&mut self, point: Point) -> Result<Point, String> {}
+        let mut count = 0;
+        loop {
+            if count == 100 {
+                return Err(format!("unable to add tile - too far"));
+            }
+            let next_vertex_star = nearest_vertex_star.nearest_neighbor(&self.atlas, &point).ok_or("failed to find nearest vertex star")?;
 
-    pub fn insert_adjacent_tile_by_point(&mut self, centroid: &Point, point: Point) -> Result<Point, String> {
-        let patch_tile = self.patch_tiles.get(centroid)
-            .ok_or(String::from(format!("no Tile in Patch centered at {}", centroid)))?;
-        let edge = patch_tile.tile.closest_edge(&point);
-        self.insert_adjacent_tile_by_edge(edge, true).map_err(|e| String::from(format!(
-            "{}\n{}\n({},{})\n{}",
-            centroid, point, edge.0, edge.1, e,
-        )))
+            let tile = nearest_vertex_star.get_tile(&self.atlas, &next_vertex_star.point).ok_or("couldn't get new tile")?;
+
+            let edge = (nearest_vertex_star.point.clone(), next_vertex_star.point.clone());
+
+            if tile.contains(&point) {
+                self.insert_adjacent_tile_by_edge(edge, true)?;
+                return Ok(())
+            } else {
+                self.insert_adjacent_tile_by_edge(edge, false)?;
+                self.vertex_stars.insert(next_vertex_star);
+                nearest_vertex_star_neighbor = self.vertex_stars.nearest_neighbor(&point).map_err(|e| format!("no nearby vertex stars:\n{}\n{:?}\n{:#?}", e, point, self.vertex_stars))?;
+                nearest_vertex_star_neighbor_rc = nearest_vertex_star_neighbor.item.upgrade();
+                nearest_vertex_star_rc = nearest_vertex_star_neighbor_rc.ok_or("vertex star doesn't exist")?;
+                nearest_vertex_star = nearest_vertex_star_rc.as_ref().borrow();
+            }
+            count += 1;
+        }
     }
 
     // insert_adjacent_tile_by_edge inserts a new Tile into this Patch
@@ -213,15 +278,12 @@ impl Patch {
     // both points in the edge are expected to be points of existing VertexStars
     // in this Patch. If both exist, the new Tile will be added starboard of the
     // edge drawn from start to stop.
-    fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point), included: bool) -> Result<Point, String> {
+    fn insert_adjacent_tile_by_edge(&mut self, (start, stop): (Point, Point), included: bool) -> Result<(), String> {
         let start_vertex_star = match self.vertex_stars.get(&start) { Some(vs) => vs, None => return Err(String::from(format!("no VertexStar found at start {}\n{:?}", start, self))) };
         let tile = match start_vertex_star.get_tile(&self.atlas, &stop) { Some(t) => t, None => return Err(String::from(format!("stop {} is not in the link of start {}\n{:?}", stop, start, self))) };
         let tile_size = tile.size();
 
-        match self.patch_tiles.insert(
-            tile.centroid.clone(),
-            PatchTile { tile: tile.clone(), included },
-        ) {
+        match self.patch_tiles.insert(PatchTile { tile: tile.clone(), included }) {
             None => {
                 if included {
                     self.tile_diffs.insert(tile.clone(), TileDiff::Added);
@@ -231,7 +293,7 @@ impl Patch {
                 if included && !patch_tile.included {
                     self.tile_diffs.insert(tile.clone(), TileDiff::Added);
                 }
-                return Ok(tile.centroid.clone())
+                return Ok(())
             },
         };
 
@@ -251,18 +313,22 @@ impl Patch {
             } else {
                 let vs = match middle_vertex_star.get_neighbor_vertex_star(&self.atlas, forward_index) { Some(vs) => vs, None => return Err(String::from(format!("unable to create neighbor VertexStar of VertexStar {} for neighbor index {} at point {}\n{:?}", middle, forward_index, forward, self))) };
                 reverse = middle;
-                middle = self.vertex_stars.entry(forward.clone()).or_insert({ new_link_points.push((forward_index, forward)); vs }).point.clone();
+                middle = vs.point.clone();
+                if !self.vertex_stars.has(&forward) {
+                    new_link_points.push((forward_index, forward));
+                    self.vertex_stars.insert(vs);
+                }
             }
         }
-        Ok(tile.centroid.clone())
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tile::{ProtoTile, regular_polygon, star_polygon};
-    use atlas_config::{Component, Neighbor, Vertex};
+    use crate::*;
+    use tile::ProtoTile;
     use geometry::Point;
     use std::f64::consts::{PI, TAU};
 
@@ -270,198 +336,2362 @@ mod tests {
     const X: Point = Point(1., 0.);
     const Y: Point = Point(0., 1.);
 
+    fn get_tile_tree_config() -> TreeConfig {
+        TreeConfig {
+            initial_radius: 1000.,
+            max_depth: 50,
+            splitting_threshold: 25,
+        }
+    }
+
+    fn get_vertex_star_tree_config() -> TreeConfig {
+        TreeConfig {
+            initial_radius: 1000.,
+            max_depth: 70,
+            splitting_threshold: 10,
+        }
+    }
+
     fn get_test_atlas_3_3_3_3_3_3() -> Atlas {
-        let triangle = regular_polygon(1., 3);
-        Atlas::new(
-            atlas_config::Atlas(vec![Vertex {
-                components: vec![
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                    Component(triangle.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 3, false),
-                    Neighbor(0, 4, false),
-                    Neighbor(0, 5, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 1, false),
-                    Neighbor(0, 2, false),
-                ],
-            }]),
-        ).expect("couldn't create atlas")
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            0.5000000000000002,
+                            0.8660254037844388,
+                        ),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.5000000000000002,
+                                    0.8660254037844388,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.5000000000000003,
+                                    0.8660254037844385,
+                                ),
+                                Point(
+                                    -0.4999999999999997,
+                                    0.866025403784439,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.49999999999999944,
+                                    0.866025403784439,
+                                ),
+                                Point(
+                                    -1.0000000000000002,
+                                    0.0000000000000007771561172376096,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -1.0,
+                                    0.0000000000000010106430996148606,
+                                ),
+                                Point(
+                                    -0.5000000000000011,
+                                    -0.8660254037844383,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.5000000000000012,
+                                    -0.8660254037844379,
+                                ),
+                                Point(
+                                    0.49999999999999883,
+                                    -0.8660254037844396,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.49999999999999856,
+                                    -0.8660254037844395,
+                                ),
+                                Point(
+                                    1.0000000000000002,
+                                    -0.0000000000000017763568394002505,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 3,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 5,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    0.5000000000000003,
+                                    0.8660254037844385,
+                                ),
+                                rotate: 4.18879020478639,
+                            },
+                            neighbor_index: 4,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 5,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.49999999999999944,
+                                    0.866025403784439,
+                                ),
+                                rotate: 5.235987755982988,
+                            },
+                            neighbor_index: 5,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 5,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -1.0,
+                                    0.0000000000000010106430996148606,
+                                ),
+                                rotate: 0.0,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 5,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.5000000000000012,
+                                    -0.8660254037844379,
+                                ),
+                                rotate: 1.0471975511965965,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 5,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    0.49999999999999856,
+                                    -0.8660254037844395,
+                                ),
+                                rotate: 2.094395102393193,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 5,
+                        },
+                    ],
+                },
+            ],
+        }
     }
 
     fn get_test_atlas_4_4_4_4() -> Atlas {
-        let square = regular_polygon(1., 4);
-        Atlas::new(
-            atlas_config::Atlas(vec![Vertex {
-                components: vec![
-                    Component(square.clone(), 0),
-                    Component(square.clone(), 1),
-                    Component(square.clone(), 2),
-                    Component(square.clone(), 3),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 2, false),
-                    Neighbor(0, 3, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 1, false),
-                ],
-            }]),
-        ).expect("couldn't create atlas")
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(0., 0.),
+                        Point(1., 0.),
+                        Point(1., 1.),
+                        Point(0., 1.),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(1., 0.),
+                                Point(1., 1.),
+                                Point(0., 1.),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(0., 1.),
+                                Point(-1., 1.),
+                                Point(-1., 0.),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(-1., 0.),
+                                Point(-1., -1.),
+                                Point(-0., -1.),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(0., -1.),
+                                Point(1., -1.),
+                                Point(1., 0.),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: PI,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (0., 1.),
+                                rotate: 3. * PI / 2.,
+                            },
+                            neighbor_index: 3,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (-1., 0.),
+                                rotate: 0.0,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (0., -1.),
+                                rotate: PI / 2.,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                    ],
+                },
+            ],
+        }
     }
 
     fn get_test_atlas_6_6_6() -> Atlas {
-        let hexagon = regular_polygon(1., 6);
-        Atlas::new(
-            atlas_config::Atlas(vec![Vertex {
-                components: vec![
-                    Component(hexagon.clone(), 0),
-                    Component(hexagon.clone(), 0),
-                    Component(hexagon.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 1, false),
-                    Neighbor(0, 2, false),
-                    Neighbor(0, 0, false),
-                ],
-            }]),
-        ).expect("couldn't create atlas")
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(0., 0.),
+                        Point(1., 0.),
+                        Point(1.5, 0.8660254037844386),
+                        Point(1., 1.7320508075688774),
+                        Point(0., 1.7320508075688776),
+                        Point(-0.5, 0.8660254037844393),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(1., 0.),
+                                Point(1.5, 0.8660254037844386),
+                                Point(1., 1.7320508075688774),
+                                Point(0., 1.7320508075688776),
+                                Point(-0.5, 0.8660254037844393),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(-0.5, 0.866025403784438),
+                                Point(-1.5, 0.8660254037844369),
+                                Point(-2., -0.),
+                                Point(-1.5, -0.8660254037844404),
+                                Point(-0.5, -0.8660254037844397),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(0., 0.),
+                                Point(-0.5, -0.8660254037844397),
+                                Point(0., -1.7320508075688772),
+                                Point(1., -1.7320508075688754),
+                                Point(1.5, -0.8660254037844358),
+                                Point(1., 0.),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (1., 0.),
+                                rotate: PI,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (-0.5, 0.866025403784438),
+                                rotate: 5. / 3. * PI,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (-0.5, -0.8660254037844397),
+                                rotate: 1. / 3. * PI,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                    ],
+                },
+            ],
+        }
     }
 
     fn get_test_atlas_3_12_12() -> Atlas {
-        let triangle = regular_polygon(1., 3);
-        let dodecagon = regular_polygon(1., 12);
-        Atlas::new(
-            atlas_config::Atlas(vec![Vertex {
-                components: vec![
-                    Component(triangle.clone(), 0),
-                    Component(dodecagon.clone(), 0),
-                    Component(dodecagon.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 1, false),
-                    Neighbor(0, 0, false),
-                    Neighbor(0, 2, false),
-                ],
-            }]),
-        ).expect("couldn't create atlas")
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            0.5000000000000002,
+                            0.8660254037844388,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            0.5000000000000003,
+                            0.8660254037844385,
+                        ),
+                        Point(
+                            0.5000000000000009,
+                            1.8660254037844388,
+                        ),
+                        Point(
+                            0.0000000000000013322676295501878,
+                            2.732050807568877,
+                        ),
+                        Point(
+                            -0.8660254037844373,
+                            3.2320508075688776,
+                        ),
+                        Point(
+                            -1.8660254037844375,
+                            3.2320508075688785,
+                        ),
+                        Point(
+                            -2.7320508075688763,
+                            2.7320508075688785,
+                        ),
+                        Point(
+                            -3.2320508075688763,
+                            1.8660254037844404,
+                        ),
+                        Point(
+                            -3.232050807568877,
+                            0.8660254037844403,
+                        ),
+                        Point(
+                            -2.7320508075688776,
+                            0.0000000000000013322676295501878,
+                        ),
+                        Point(
+                            -1.8660254037844397,
+                            -0.49999999999999933,
+                        ),
+                        Point(
+                            -0.8660254037844396,
+                            -0.4999999999999997,
+                        ),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.5000000000000002,
+                                    0.8660254037844388,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.5000000000000003,
+                                    0.8660254037844385,
+                                ),
+                                Point(
+                                    0.5000000000000009,
+                                    1.8660254037844388,
+                                ),
+                                Point(
+                                    0.0000000000000013322676295501878,
+                                    2.732050807568877,
+                                ),
+                                Point(
+                                    -0.8660254037844373,
+                                    3.2320508075688776,
+                                ),
+                                Point(
+                                    -1.8660254037844375,
+                                    3.2320508075688785,
+                                ),
+                                Point(
+                                    -2.7320508075688763,
+                                    2.7320508075688785,
+                                ),
+                                Point(
+                                    -3.2320508075688763,
+                                    1.8660254037844404,
+                                ),
+                                Point(
+                                    -3.232050807568877,
+                                    0.8660254037844403,
+                                ),
+                                Point(
+                                    -2.7320508075688776,
+                                    0.0000000000000013322676295501878,
+                                ),
+                                Point(
+                                    -1.8660254037844397,
+                                    -0.49999999999999933,
+                                ),
+                                Point(
+                                    -0.8660254037844396,
+                                    -0.4999999999999997,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.8660254037844386,
+                                    -0.5000000000000001,
+                                ),
+                                Point(
+                                    -1.3660254037844386,
+                                    -1.3660254037844388,
+                                ),
+                                Point(
+                                    -1.3660254037844386,
+                                    -2.366025403784439,
+                                ),
+                                Point(
+                                    -0.8660254037844386,
+                                    -3.232050807568877,
+                                ),
+                                Point(
+                                    0.0000000000000002220446049250313,
+                                    -3.732050807568877,
+                                ),
+                                Point(
+                                    1.0,
+                                    -3.7320508075688776,
+                                ),
+                                Point(
+                                    1.8660254037844386,
+                                    -3.2320508075688776,
+                                ),
+                                Point(
+                                    2.366025403784439,
+                                    -2.366025403784439,
+                                ),
+                                Point(
+                                    2.3660254037844393,
+                                    -1.3660254037844388,
+                                ),
+                                Point(
+                                    1.8660254037844393,
+                                    -0.5000000000000002,
+                                ),
+                                Point(
+                                    1.0000000000000007,
+                                    -0.0000000000000002220446049250313,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    0.5000000000000003,
+                                    0.8660254037844385,
+                                ),
+                                rotate: 4.18879020478639,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.8660254037844386,
+                                    -0.5000000000000001,
+                                ),
+                                rotate: 0.5235987755982991,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                    ],
+                },
+            ],
+        }
     }
 
     fn get_test_atlas_4_6_12() -> Atlas {
-        let square = regular_polygon(1., 4);
-        let hexagon = regular_polygon(1., 6);
-        let dodecagon = regular_polygon(1., 12);
-        Atlas::new(
-            atlas_config::Atlas(vec![Vertex {
-                components: vec![
-                    Component(dodecagon.clone(), 0),
-                    Component(hexagon.clone(), 0),
-                    Component(square.clone(), 0),
-                ],
-                neighbors: vec![
-                    Neighbor(0, 0, true),
-                    Neighbor(0, 1, true),
-                    Neighbor(0, 2, true),
-                ],
-            }]),
-        ).expect("couldn't create atlas")
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            -0.8660254037844389,
+                            0.49999999999999956,
+                        ),
+                        Point(
+                            -1.7320508075688774,
+                            -0.0000000000000008881784197001252,
+                        ),
+                        Point(
+                            -1.7320508075688772,
+                            -1.0000000000000009,
+                        ),
+                        Point(
+                            -0.8660254037844383,
+                            -1.5000000000000009,
+                        ),
+                        Point(
+                            0.0000000000000003885780586188048,
+                            -1.0000000000000007,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.8660254037844388,
+                            0.49999999999999994,
+                        ),
+                        Point(
+                            2.366025403784439,
+                            1.3660254037844386,
+                        ),
+                        Point(
+                            2.366025403784439,
+                            2.3660254037844384,
+                        ),
+                        Point(
+                            1.866025403784439,
+                            3.232050807568877,
+                        ),
+                        Point(
+                            1.0000000000000004,
+                            3.732050807568877,
+                        ),
+                        Point(
+                            0.0000000000000004440892098500626,
+                            3.732050807568877,
+                        ),
+                        Point(
+                            -0.8660254037844384,
+                            3.2320508075688776,
+                        ),
+                        Point(
+                            -1.3660254037844388,
+                            2.3660254037844393,
+                        ),
+                        Point(
+                            -1.366025403784439,
+                            1.3660254037844393,
+                        ),
+                        Point(
+                            -0.866025403784439,
+                            0.5000000000000007,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            0.0000000000000015926598195281475,
+                            -1.0,
+                        ),
+                        Point(
+                            1.0000000000000016,
+                            -0.9999999999999984,
+                        ),
+                        Point(
+                            1.0,
+                            0.0000000000000015926598195281475,
+                        ),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.8660254037844388,
+                                    0.49999999999999994,
+                                ),
+                                Point(
+                                    2.366025403784439,
+                                    1.3660254037844386,
+                                ),
+                                Point(
+                                    2.366025403784439,
+                                    2.3660254037844384,
+                                ),
+                                Point(
+                                    1.866025403784439,
+                                    3.232050807568877,
+                                ),
+                                Point(
+                                    1.0000000000000004,
+                                    3.732050807568877,
+                                ),
+                                Point(
+                                    0.0000000000000004440892098500626,
+                                    3.732050807568877,
+                                ),
+                                Point(
+                                    -0.8660254037844384,
+                                    3.2320508075688776,
+                                ),
+                                Point(
+                                    -1.3660254037844388,
+                                    2.3660254037844393,
+                                ),
+                                Point(
+                                    -1.366025403784439,
+                                    1.3660254037844393,
+                                ),
+                                Point(
+                                    -0.866025403784439,
+                                    0.5000000000000007,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.8660254037844389,
+                                    0.49999999999999956,
+                                ),
+                                Point(
+                                    -1.7320508075688774,
+                                    -0.0000000000000008881784197001252,
+                                ),
+                                Point(
+                                    -1.7320508075688772,
+                                    -1.0000000000000009,
+                                ),
+                                Point(
+                                    -0.8660254037844383,
+                                    -1.5000000000000009,
+                                ),
+                                Point(
+                                    0.0000000000000003885780586188048,
+                                    -1.0000000000000007,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.0000000000000015926598195281475,
+                                    -1.0,
+                                ),
+                                Point(
+                                    1.0000000000000016,
+                                    -0.9999999999999984,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0000000000000015926598195281475,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: true,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: true,
+                                translate: (
+                                    -0.8660254037844389,
+                                    0.49999999999999956,
+                                ),
+                                rotate: 5.759586531581288,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: true,
+                                translate: (
+                                    0.0000000000000015926598195281475,
+                                    -1.0,
+                                ),
+                                rotate: 1.5707963267948983,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 2,
+                        },
+                    ],
+                },
+            ],
+        }
     }
 
     fn get_test_atlas_4_6apio6_6aapio2_6apio6() -> Atlas {
-        let square = regular_polygon(1., 4);
-        let star_1 = star_polygon(1., 6, PI / 6.);
-        let star_2 = star_polygon(1., 6, PI / 2.);
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            0.8660254037844389,
+                            0.49999999999999944,
+                        ),
+                        Point(
+                            0.3660254037844395,
+                            1.3660254037844384,
+                        ),
+                        Point(
+                            -0.49999999999999944,
+                            0.8660254037844389,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.8660254037844388,
+                            -0.49999999999999983,
+                        ),
+                        Point(
+                            2.366025403784439,
+                            0.3660254037844389,
+                        ),
+                        Point(
+                            3.232050807568877,
+                            0.866025403784439,
+                        ),
+                        Point(
+                            2.732050807568877,
+                            1.7320508075688776,
+                        ),
+                        Point(
+                            2.7320508075688767,
+                            2.7320508075688776,
+                        ),
+                        Point(
+                            1.7320508075688767,
+                            2.732050807568877,
+                        ),
+                        Point(
+                            0.8660254037844378,
+                            3.2320508075688767,
+                        ),
+                        Point(
+                            0.36602540378443815,
+                            2.366025403784438,
+                        ),
+                        Point(
+                            -0.5000000000000002,
+                            1.8660254037844377,
+                        ),
+                        Point(
+                            0.0000000000000005551115123125784,
+                            0.9999999999999992,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            -0.866025403784438,
+                            0.5000000000000012,
+                        ),
+                        Point(
+                            -1.3660254037844395,
+                            -0.3660254037844366,
+                        ),
+                        Point(
+                            -2.2320508075688785,
+                            -0.8660254037844354,
+                        ),
+                        Point(
+                            -1.73205080756888,
+                            -1.7320508075688748,
+                        ),
+                        Point(
+                            -1.7320508075688812,
+                            -2.732050807568875,
+                        ),
+                        Point(
+                            -0.7320508075688813,
+                            -2.732050807568876,
+                        ),
+                        Point(
+                            0.13397459621555682,
+                            -3.2320508075688767,
+                        ),
+                        Point(
+                            0.633974596215558,
+                            -2.366025403784439,
+                        ),
+                        Point(
+                            1.4999999999999971,
+                            -1.8660254037844402,
+                        ),
+                        Point(
+                            0.9999999999999978,
+                            -1.0000000000000009,
+                        ),
+                        Point(
+                            1.0,
+                            -0.0000000000000016538921594855151,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            -0.00000000000000012246467991473532,
+                            1.0,
+                        ),
+                        Point(
+                            -0.5,
+                            0.13397459621556124,
+                        ),
+                        Point(
+                            -1.3660254037844388,
+                            0.633974596215561,
+                        ),
+                        Point(
+                            -0.8660254037844388,
+                            -0.23205080756887755,
+                        ),
+                        Point(
+                            -1.7320508075688772,
+                            -0.7320508075688779,
+                        ),
+                        Point(
+                            -0.7320508075688771,
+                            -0.7320508075688779,
+                        ),
+                        Point(
+                            -0.732050807568877,
+                            -1.7320508075688776,
+                        ),
+                        Point(
+                            -0.23205080756887753,
+                            -0.8660254037844388,
+                        ),
+                        Point(
+                            0.6339745962155615,
+                            -1.3660254037844384,
+                        ),
+                        Point(
+                            0.13397459621556057,
+                            -0.5000000000000002,
+                        ),
+                        Point(
+                            1.0,
+                            0.00000000000000012246467991473532,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            -1.0,
+                        ),
+                        Point(
+                            1.5,
+                            -0.1339745962155613,
+                        ),
+                        Point(
+                            2.366025403784439,
+                            -0.6339745962155612,
+                        ),
+                        Point(
+                            1.8660254037844388,
+                            0.23205080756887744,
+                        ),
+                        Point(
+                            2.732050807568877,
+                            0.7320508075688776,
+                        ),
+                        Point(
+                            1.7320508075688772,
+                            0.7320508075688777,
+                        ),
+                        Point(
+                            1.7320508075688772,
+                            1.7320508075688776,
+                        ),
+                        Point(
+                            1.2320508075688776,
+                            0.8660254037844388,
+                        ),
+                        Point(
+                            0.3660254037844387,
+                            1.3660254037844384,
+                        ),
+                        Point(
+                            0.8660254037844395,
+                            0.5000000000000002,
+                        ),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.8660254037844388,
+                                    -0.49999999999999983,
+                                ),
+                                Point(
+                                    2.366025403784439,
+                                    0.3660254037844389,
+                                ),
+                                Point(
+                                    3.232050807568877,
+                                    0.866025403784439,
+                                ),
+                                Point(
+                                    2.732050807568877,
+                                    1.7320508075688776,
+                                ),
+                                Point(
+                                    2.7320508075688767,
+                                    2.7320508075688776,
+                                ),
+                                Point(
+                                    1.7320508075688767,
+                                    2.732050807568877,
+                                ),
+                                Point(
+                                    0.8660254037844378,
+                                    3.2320508075688767,
+                                ),
+                                Point(
+                                    0.36602540378443815,
+                                    2.366025403784438,
+                                ),
+                                Point(
+                                    -0.5000000000000002,
+                                    1.8660254037844377,
+                                ),
+                                Point(
+                                    0.0000000000000005551115123125784,
+                                    0.9999999999999992,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.00000000000000012246467991473532,
+                                    1.0,
+                                ),
+                                Point(
+                                    -0.5,
+                                    0.13397459621556124,
+                                ),
+                                Point(
+                                    -1.3660254037844388,
+                                    0.633974596215561,
+                                ),
+                                Point(
+                                    -0.8660254037844388,
+                                    -0.23205080756887755,
+                                ),
+                                Point(
+                                    -1.7320508075688772,
+                                    -0.7320508075688779,
+                                ),
+                                Point(
+                                    -0.7320508075688771,
+                                    -0.7320508075688779,
+                                ),
+                                Point(
+                                    -0.732050807568877,
+                                    -1.7320508075688776,
+                                ),
+                                Point(
+                                    -0.23205080756887753,
+                                    -0.8660254037844388,
+                                ),
+                                Point(
+                                    0.6339745962155615,
+                                    -1.3660254037844384,
+                                ),
+                                Point(
+                                    0.13397459621556057,
+                                    -0.5000000000000002,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.00000000000000012246467991473532,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 1,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 1,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 1,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.00000000000000012246467991473532,
+                                    1.0,
+                                ),
+                                rotate: 4.188790204786391,
+                            },
+                            neighbor_index: 3,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 1,
+                        },
+                    ],
+                },
+                ProtoVertexStar {
+                    index: 1,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    -1.0,
+                                ),
+                                Point(
+                                    1.5,
+                                    -0.1339745962155613,
+                                ),
+                                Point(
+                                    2.366025403784439,
+                                    -0.6339745962155612,
+                                ),
+                                Point(
+                                    1.8660254037844388,
+                                    0.23205080756887744,
+                                ),
+                                Point(
+                                    2.732050807568877,
+                                    0.7320508075688776,
+                                ),
+                                Point(
+                                    1.7320508075688772,
+                                    0.7320508075688777,
+                                ),
+                                Point(
+                                    1.7320508075688772,
+                                    1.7320508075688776,
+                                ),
+                                Point(
+                                    1.2320508075688776,
+                                    0.8660254037844388,
+                                ),
+                                Point(
+                                    0.3660254037844387,
+                                    1.3660254037844384,
+                                ),
+                                Point(
+                                    0.8660254037844395,
+                                    0.5000000000000002,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.8660254037844389,
+                                    0.49999999999999944,
+                                ),
+                                Point(
+                                    0.3660254037844395,
+                                    1.3660254037844384,
+                                ),
+                                Point(
+                                    -0.49999999999999944,
+                                    0.8660254037844389,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.49999999999999944,
+                                    0.866025403784439,
+                                ),
+                                Point(
+                                    0.3660254037844396,
+                                    1.3660254037844384,
+                                ),
+                                Point(
+                                    -0.6339745962155605,
+                                    1.366025403784439,
+                                ),
+                                Point(
+                                    -0.63397459621556,
+                                    2.3660254037844393,
+                                ),
+                                Point(
+                                    -1.1339745962155607,
+                                    1.5000000000000009,
+                                ),
+                                Point(
+                                    -1.9999999999999991,
+                                    2.0000000000000013,
+                                ),
+                                Point(
+                                    -1.4999999999999996,
+                                    1.133974596215562,
+                                ),
+                                Point(
+                                    -2.3660254037844384,
+                                    0.6339745962155628,
+                                ),
+                                Point(
+                                    -1.3660254037844386,
+                                    0.6339745962155625,
+                                ),
+                                Point(
+                                    -1.3660254037844388,
+                                    -0.36602540378443754,
+                                ),
+                                Point(
+                                    -0.8660254037844389,
+                                    0.5000000000000013,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.866025403784438,
+                                    0.5000000000000012,
+                                ),
+                                Point(
+                                    -1.3660254037844395,
+                                    -0.3660254037844366,
+                                ),
+                                Point(
+                                    -2.2320508075688785,
+                                    -0.8660254037844354,
+                                ),
+                                Point(
+                                    -1.73205080756888,
+                                    -1.7320508075688748,
+                                ),
+                                Point(
+                                    -1.7320508075688812,
+                                    -2.732050807568875,
+                                ),
+                                Point(
+                                    -0.7320508075688813,
+                                    -2.732050807568876,
+                                ),
+                                Point(
+                                    0.13397459621555682,
+                                    -3.2320508075688767,
+                                ),
+                                Point(
+                                    0.633974596215558,
+                                    -2.366025403784439,
+                                ),
+                                Point(
+                                    1.4999999999999971,
+                                    -1.8660254037844402,
+                                ),
+                                Point(
+                                    0.9999999999999978,
+                                    -1.0000000000000009,
+                                ),
+                                Point(
+                                    1.0,
+                                    -0.0000000000000016538921594855151,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 1,
+                            reverse_tile_index: 0,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 2,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    0.8660254037844389,
+                                    0.49999999999999944,
+                                ),
+                                rotate: 3.6651914291880914,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 1,
+                            reverse_tile_index: 0,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 2,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.49999999999999944,
+                                    0.866025403784439,
+                                ),
+                                rotate: 5.235987755982988,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 1,
+                            reverse_tile_index: 0,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.866025403784438,
+                                    0.5000000000000012,
+                                ),
+                                rotate: 4.18879020478639,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 1,
+                            reverse_tile_index: 0,
+                        },
+                    ],
+                },
+                ProtoVertexStar {
+                    index: 2,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    1.0,
+                                ),
+                                Point(
+                                    0.0,
+                                    1.0,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.00000000000000012246467991473532,
+                                    1.0,
+                                ),
+                                Point(
+                                    -0.5,
+                                    0.13397459621556124,
+                                ),
+                                Point(
+                                    -1.3660254037844388,
+                                    0.633974596215561,
+                                ),
+                                Point(
+                                    -0.8660254037844388,
+                                    -0.23205080756887755,
+                                ),
+                                Point(
+                                    -1.7320508075688772,
+                                    -0.7320508075688779,
+                                ),
+                                Point(
+                                    -0.7320508075688771,
+                                    -0.7320508075688779,
+                                ),
+                                Point(
+                                    -0.732050807568877,
+                                    -1.7320508075688776,
+                                ),
+                                Point(
+                                    -0.23205080756887753,
+                                    -0.8660254037844388,
+                                ),
+                                Point(
+                                    0.6339745962155615,
+                                    -1.3660254037844384,
+                                ),
+                                Point(
+                                    0.13397459621556057,
+                                    -0.5000000000000002,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.00000000000000012246467991473532,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 1,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 2,
+                            reverse_tile_index: 1,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 1,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.00000000000000012246467991473532,
+                                    1.0,
+                                ),
+                                rotate: 4.188790204786391,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 2,
+                            reverse_tile_index: 1,
+                        },
+                    ],
+                },
+            ],
+        }
+    }
 
-        Atlas::new(
-            atlas_config::Atlas(vec![
-                Vertex {
-                    components: vec![
-                        Component(star_2.clone(), 0),
-                        Component(star_1.clone(), 1),
+    fn get_test_atlas_6_4apio6_6_4apio6() -> Atlas {
+        Atlas {
+            proto_tiles: vec![
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.5,
+                            -0.8660254037844387,
+                        ),
+                        Point(
+                            1.5,
+                            0.1339745962155613,
+                        ),
+                        Point(
+                            2.366025403784439,
+                            0.6339745962155612,
+                        ),
+                        Point(
+                            1.3660254037844388,
+                            0.6339745962155613,
+                        ),
+                        Point(
+                            0.866025403784439,
+                            1.5,
+                        ),
+                        Point(
+                            0.8660254037844388,
+                            0.5,
+                        ),
                     ],
-                    neighbors: vec![
-                        Neighbor(1, 0, false),
-                        Neighbor(1, 3, false),
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            0.8660254037844389,
+                            0.49999999999999944,
+                        ),
+                        Point(
+                            0.8660254037844397,
+                            1.4999999999999993,
+                        ),
+                        Point(
+                            0.0000000000000014432899320127035,
+                            2.0,
+                        ),
+                        Point(
+                            -0.8660254037844376,
+                            1.5000000000000009,
+                        ),
+                        Point(
+                            -0.8660254037844388,
+                            0.5000000000000009,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            -1.0,
+                            0.00000000000000012246467991473532,
+                        ),
+                        Point(
+                            -1.5,
+                            -0.8660254037844385,
+                        ),
+                        Point(
+                            -2.0,
+                            -1.7320508075688772,
+                        ),
+                        Point(
+                            -1.5000000000000002,
+                            -2.598076211353316,
+                        ),
+                        Point(
+                            -1.0000000000000004,
+                            -3.4641016151377544,
+                        ),
+                        Point(
+                            -0.00000000000000042423009548996267,
+                            -3.464101615137754,
+                        ),
+                        Point(
+                            0.9999999999999996,
+                            -3.4641016151377535,
+                        ),
+                        Point(
+                            1.4999999999999993,
+                            -2.5980762113533147,
+                        ),
+                        Point(
+                            1.999999999999999,
+                            -1.7320508075688763,
+                        ),
+                        Point(
+                            1.4999999999999987,
+                            -0.8660254037844379,
+                        ),
+                        Point(
+                            1.0,
+                            -0.00000000000000012246467991473532,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            1.0,
+                            0.0,
+                        ),
+                        Point(
+                            2.0,
+                            0.0,
+                        ),
+                        Point(
+                            2.5,
+                            0.8660254037844387,
+                        ),
+                        Point(
+                            3.0,
+                            1.7320508075688774,
+                        ),
+                        Point(
+                            2.5,
+                            2.598076211353316,
+                        ),
+                        Point(
+                            2.0,
+                            3.4641016151377544,
+                        ),
+                        Point(
+                            1.0,
+                            3.464101615137754,
+                        ),
+                        Point(
+                            0.0,
+                            3.4641016151377535,
+                        ),
+                        Point(
+                            -0.49999999999999967,
+                            2.5980762113533147,
+                        ),
+                        Point(
+                            -0.9999999999999992,
+                            1.732050807568876,
+                        ),
+                        Point(
+                            -0.49999999999999856,
+                            0.8660254037844377,
+                        ),
+                    ],
+                    parity: false,
+                },
+                ProtoTile {
+                    points: vec![
+                        Point(
+                            0.0,
+                            0.0,
+                        ),
+                        Point(
+                            -0.5000000000000001,
+                            0.8660254037844386,
+                        ),
+                        Point(
+                            -0.5,
+                            -0.13397459621556135,
+                        ),
+                        Point(
+                            -1.3660254037844388,
+                            -0.6339745962155614,
+                        ),
+                        Point(
+                            -0.36602540378443876,
+                            -0.6339745962155613,
+                        ),
+                        Point(
+                            0.13397459621556115,
+                            -1.5,
+                        ),
+                        Point(
+                            0.13397459621556124,
+                            -0.5,
+                        ),
+                        Point(
+                            1.0,
+                            0.00000000000000012246467991473532,
+                        ),
+                    ],
+                    parity: false,
+                },
+            ],
+            proto_vertex_stars: vec![
+                ProtoVertexStar {
+                    index: 0,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.5,
+                                    -0.8660254037844387,
+                                ),
+                                Point(
+                                    1.5,
+                                    0.1339745962155613,
+                                ),
+                                Point(
+                                    2.366025403784439,
+                                    0.6339745962155612,
+                                ),
+                                Point(
+                                    1.3660254037844388,
+                                    0.6339745962155613,
+                                ),
+                                Point(
+                                    0.866025403784439,
+                                    1.5,
+                                ),
+                                Point(
+                                    0.8660254037844388,
+                                    0.5,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    0.8660254037844389,
+                                    0.49999999999999944,
+                                ),
+                                Point(
+                                    0.8660254037844397,
+                                    1.4999999999999993,
+                                ),
+                                Point(
+                                    0.0000000000000014432899320127035,
+                                    2.0,
+                                ),
+                                Point(
+                                    -0.8660254037844376,
+                                    1.5000000000000009,
+                                ),
+                                Point(
+                                    -0.8660254037844388,
+                                    0.5000000000000009,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.8660254037844389,
+                                    0.49999999999999956,
+                                ),
+                                Point(
+                                    -0.8660254037844395,
+                                    1.4999999999999996,
+                                ),
+                                Point(
+                                    -1.366025403784439,
+                                    0.6339745962155607,
+                                ),
+                                Point(
+                                    -2.3660254037844393,
+                                    0.6339745962155603,
+                                ),
+                                Point(
+                                    -1.5000000000000002,
+                                    0.13397459621556074,
+                                ),
+                                Point(
+                                    -1.5,
+                                    -0.8660254037844393,
+                                ),
+                                Point(
+                                    -1.0000000000000002,
+                                    -0.0000000000000004440892098500626,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -1.0,
+                                    0.00000000000000012246467991473532,
+                                ),
+                                Point(
+                                    -1.5,
+                                    -0.8660254037844385,
+                                ),
+                                Point(
+                                    -2.0,
+                                    -1.7320508075688772,
+                                ),
+                                Point(
+                                    -1.5000000000000002,
+                                    -2.598076211353316,
+                                ),
+                                Point(
+                                    -1.0000000000000004,
+                                    -3.4641016151377544,
+                                ),
+                                Point(
+                                    -0.00000000000000042423009548996267,
+                                    -3.464101615137754,
+                                ),
+                                Point(
+                                    0.9999999999999996,
+                                    -3.4641016151377535,
+                                ),
+                                Point(
+                                    1.4999999999999993,
+                                    -2.5980762113533147,
+                                ),
+                                Point(
+                                    1.999999999999999,
+                                    -1.7320508075688763,
+                                ),
+                                Point(
+                                    1.4999999999999987,
+                                    -0.8660254037844379,
+                                ),
+                                Point(
+                                    1.0,
+                                    -0.00000000000000012246467991473532,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                    ],
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 1,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 2,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    0.8660254037844389,
+                                    0.49999999999999944,
+                                ),
+                                rotate: 3.6651914291880914,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 2,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.8660254037844389,
+                                    0.49999999999999956,
+                                ),
+                                rotate: 5.759586531581288,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 1,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -1.0,
+                                    0.00000000000000012246467991473532,
+                                ),
+                                rotate: 4.18879020478639,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 0,
+                            reverse_tile_index: 3,
+                        },
                     ],
                 },
-                Vertex {
-                    components: vec![
-                        Component(star_1.clone(), 0),
-                        Component(square.clone(), 0),
-                        Component(star_1.clone(), 0),
-                        Component(star_2.clone(), 1),
+                ProtoVertexStar {
+                    index: 1,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    2.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    2.5,
+                                    0.8660254037844387,
+                                ),
+                                Point(
+                                    3.0,
+                                    1.7320508075688774,
+                                ),
+                                Point(
+                                    2.5,
+                                    2.598076211353316,
+                                ),
+                                Point(
+                                    2.0,
+                                    3.4641016151377544,
+                                ),
+                                Point(
+                                    1.0,
+                                    3.464101615137754,
+                                ),
+                                Point(
+                                    0.0,
+                                    3.4641016151377535,
+                                ),
+                                Point(
+                                    -0.49999999999999967,
+                                    2.5980762113533147,
+                                ),
+                                Point(
+                                    -0.9999999999999992,
+                                    1.732050807568876,
+                                ),
+                                Point(
+                                    -0.49999999999999856,
+                                    0.8660254037844377,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.5000000000000001,
+                                    0.8660254037844386,
+                                ),
+                                Point(
+                                    -0.5,
+                                    -0.13397459621556135,
+                                ),
+                                Point(
+                                    -1.3660254037844388,
+                                    -0.6339745962155614,
+                                ),
+                                Point(
+                                    -0.36602540378443876,
+                                    -0.6339745962155613,
+                                ),
+                                Point(
+                                    0.13397459621556115,
+                                    -1.5,
+                                ),
+                                Point(
+                                    0.13397459621556124,
+                                    -0.5,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.00000000000000012246467991473532,
+                                ),
+                            ],
+                            parity: false,
+                        },
                     ],
-                    neighbors: vec![
-                        Neighbor(0, 0, false),
-                        Neighbor(2, 1, false),
-                        Neighbor(2, 0, false),
-                        Neighbor(0, 1, false),
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 0,
+                            forward_tile_index: 1,
+                            reverse_tile_index: 0,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.5000000000000001,
+                                    0.8660254037844386,
+                                ),
+                                rotate: 4.7123889803846915,
+                            },
+                            neighbor_index: 3,
+                            forward_tile_index: 1,
+                            reverse_tile_index: 0,
+                        },
                     ],
                 },
-                Vertex {
-                    components: vec![
-                        Component(square.clone(), 0),
-                        Component(star_1.clone(), 1),
+                ProtoVertexStar {
+                    index: 2,
+                    proto_tiles: vec![
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    1.5,
+                                    0.8660254037844386,
+                                ),
+                                Point(
+                                    1.0000000000000002,
+                                    1.7320508075688774,
+                                ),
+                                Point(
+                                    0.0000000000000002220446049250313,
+                                    1.7320508075688776,
+                                ),
+                                Point(
+                                    -0.5000000000000002,
+                                    0.8660254037844393,
+                                ),
+                            ],
+                            parity: false,
+                        },
+                        ProtoTile {
+                            points: vec![
+                                Point(
+                                    0.0,
+                                    0.0,
+                                ),
+                                Point(
+                                    -0.5000000000000017,
+                                    0.8660254037844377,
+                                ),
+                                Point(
+                                    -0.4999999999999997,
+                                    -0.13397459621556224,
+                                ),
+                                Point(
+                                    -1.3660254037844377,
+                                    -0.6339745962155637,
+                                ),
+                                Point(
+                                    -0.3660254037844376,
+                                    -0.633974596215562,
+                                ),
+                                Point(
+                                    0.13397459621556382,
+                                    -1.4999999999999998,
+                                ),
+                                Point(
+                                    0.13397459621556213,
+                                    -0.4999999999999997,
+                                ),
+                                Point(
+                                    1.0,
+                                    0.0000000000000018988215193149856,
+                                ),
+                            ],
+                            parity: false,
+                        },
                     ],
-                    neighbors: vec![
-                        Neighbor(1, 2, false),
-                        Neighbor(1, 1, false),
+                    proto_neighbors: vec![
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    1.0,
+                                    0.0,
+                                ),
+                                rotate: 3.141592653589793,
+                            },
+                            neighbor_index: 2,
+                            forward_tile_index: 2,
+                            reverse_tile_index: 1,
+                        },
+                        ProtoNeighbor {
+                            proto_vertex_star_index: 0,
+                            transform: VertexStarTransform {
+                                parity: false,
+                                translate: (
+                                    -0.5000000000000017,
+                                    0.8660254037844377,
+                                ),
+                                rotate: 4.7123889803846915,
+                            },
+                            neighbor_index: 1,
+                            forward_tile_index: 2,
+                            reverse_tile_index: 1,
+                        },
                     ],
-                }
-            ]),
-        ).expect("couldn't create atlas")
+                },
+            ],
+        }
     }
 
     #[test]
     fn test_atlas_6_4apio6_6_4apio6() {
-        let star = star_polygon(1., 4, PI / 6.);
-        let hexagon_1 = regular_polygon(1., 6);
-        let hexagon_2 = star_polygon(1., 6, 2. * PI / 3.);
-
-        let atlas = Atlas::new(
-            atlas_config::Atlas(vec![
-                Vertex {
-                    components: vec![
-                        Component(star.clone(), 0),
-                        Component(hexagon_1.clone(), 0),
-                        Component(star.clone(), 0),
-                        Component(hexagon_2.clone(), 1),
-                    ],
-                    neighbors: vec![
-                        Neighbor(1, 0, false),
-                        Neighbor(2, 1, false),
-                        Neighbor(2, 0, false),
-                        Neighbor(1, 1, false),
-                    ],
-                },
-                Vertex {
-                    components: vec![
-                        Component(hexagon_2.clone(), 0),
-                        Component(star.clone(), 1),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 0, false),
-                        Neighbor(0, 3, false),
-                    ],
-                },
-                Vertex {
-                    components: vec![
-                        Component(hexagon_1.clone(), 0),
-                        Component(star.clone(), 1),
-                    ],
-                    neighbors: vec![
-                        Neighbor(0, 2, false),
-                        Neighbor(0, 1, false),
-                    ],
-                },
-            ]),
-        ).expect("couldn't create atlas");
-
-        let _patch = match Patch::new(atlas) {
+        let _patch = match Patch::new(
+            get_test_atlas_6_4apio6_6_4apio6(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ) {
             Ok(_) => {},
             Err(e) => {
                 println!("{:?}", e);
@@ -860,242 +3090,68 @@ mod tests {
     }
 
     #[test]
-    fn test_patch_insert_adjacent_tile_by_point() {
-        let (mut patch, mut centroid) = Patch::new(get_test_atlas_4_6_12()).unwrap();
-        centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(1.30, 1.30)) { Ok(p) => p, Err(e) => panic!("{}", e) };
-        centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(6.53,-1.31)) { Ok(p) => p, Err(e) => panic!("{}", e) };
-        centroid = match patch.insert_adjacent_tile_by_point(&centroid, Point(7.,-0.5)) { Ok(p) => p, Err(e) => panic!("{}", e) };
-        match patch.insert_adjacent_tile_by_point(&centroid, Point(7.,-0.5)) { Ok(p) => p, Err(e) => panic!("{}", e) };
+    fn test_patch_insert_tile_by_point_1() {
+        let mut patch = Patch::new(
+            get_test_atlas_4_4_4_4(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ).expect("");
 
-        let edge = (Point(1. + 3_f64.sqrt() / 2., 0.5), Point(1.5 + 3_f64.sqrt() / 2., 0.5 + 3_f64.sqrt() / 2.));
-
-        let (mut patch, _centroid) = Patch::new(get_test_atlas_4_6_12()).unwrap();
-        patch.insert_adjacent_tile_by_edge(edge).expect("");
+        patch.insert_tile_by_point(Point(-2.3666666666666667, 1.729999796549479)).unwrap();
     }
 
     #[test]
-    fn test_patch_insert_adjacent_tile_by_edge_4_6apio6_6aapio2_6apio6() {
-        let atlas = get_test_atlas_4_6apio6_6aapio2_6apio6();
+    fn test_patch_insert_tile_by_point_2() {
+        let mut patch = Patch::new(
+            get_test_atlas_4_4_4_4(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ).expect("");
 
-        // 2π * (n - 2) / 4n = angle of inclination to n-gon centroid (when first edge extends from origin to another point on the x-axis)
-        // In this case we want to find the centroid angle of the circumscribing hexagon so we use n = 6.
-        let hex_centroid_angle = to_rad(360. * (6. - 2.) / (4. * 6.));
+        patch.insert_tile_by_point(Point(-3.966666666666667, 5.729999796549479)).unwrap();
+    }
 
-        let _4_radius = 2_f64.sqrt() / 2.;
+    #[test]
+    fn test_patch_insert_tile_by_point_3() {
+        let mut patch = Patch::new(
+            get_test_atlas_4_4_4_4(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ).expect("");
 
-        let _6apio6_dent_angle = to_rad(45.);
-        let _6aapio2_dent_angle = to_rad(15.);
+        patch.insert_tile_by_point(Point(-3.9, 2.296666463216146)).unwrap();
+    }
 
-        let _6apio6_outer_radius = _6apio6_dent_angle.cos() / hex_centroid_angle.cos();
-        let _6aapio2_outer_radius = _6aapio2_dent_angle.cos() / hex_centroid_angle.cos();
+    #[test]
+    fn test_patch_insert_tile_by_point_4() {
+        let mut patch = Patch::new(
+            get_test_atlas_6_6_6(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ).expect("");
 
-        let _6apio6_inner_radius = _6apio6_dent_angle.cos() * hex_centroid_angle.tan() - _6apio6_dent_angle.sin();
-        let _6aapio2_inner_radius = _6aapio2_dent_angle.cos() * hex_centroid_angle.tan() - _6aapio2_dent_angle.sin();
+        patch.insert_tile_by_point(Point(1.2333333333333334, 5.729999796549479)).unwrap();
+    }
 
-        let (mut patch, mut centroid) = Patch::new(atlas).unwrap();
+    #[test]
+    fn test_patch_insert_tile_by_point_5() {
+        let mut patch = Patch::new(
+            get_test_atlas_6_6_6(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ).expect("");
 
-        assert_eq!(
-            Point(
-                _6aapio2_outer_radius * to_rad(45.).cos(),
-                _6aapio2_outer_radius * to_rad(45.).sin(),
-            ),
-            centroid,
-        );
+        patch.insert_tile_by_point(Point(1.3666666666666667, 5.696666463216146)).unwrap();
+    }
 
-        let tile = patch.tiles.get(&centroid).unwrap();
+    #[test]
+    fn test_patch_insert_tile_by_point_6() {
+        let mut patch = Patch::new(
+            get_test_atlas_6_6_6(),
+            get_tile_tree_config(),
+            get_vertex_star_tree_config(),
+        ).expect("");
 
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.first().unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-        assert_eq!(exp_proto_tile, proto_tile);
-
-        // 6*π/6
-        centroid = patch.insert_adjacent_tile_by_edge((ORIGIN.clone(), X.clone())).expect("");
-        assert_eq!(
-            Point(
-                _6apio6_inner_radius * to_rad(225.).cos(),
-                _6apio6_inner_radius * to_rad(225.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 6*π/6 - repeat
-        centroid = patch.insert_adjacent_tile_by_edge((ORIGIN.clone(), X.clone())).expect("");
-        assert_eq!(
-            Point(
-                _6apio6_inner_radius * to_rad(225.).cos(),
-                _6apio6_inner_radius * to_rad(225.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 6**π/2
-        centroid = patch.insert_adjacent_tile_by_edge((ORIGIN.clone(), Y.clone())).expect("");
-        assert_eq!(
-            Point(
-                _6aapio2_outer_radius * to_rad(45.).cos(),
-                _6aapio2_outer_radius * to_rad(45.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(0).unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 6**π/2 - repeat (different edge)
-        centroid = patch.insert_adjacent_tile_by_edge((X.clone(), ORIGIN.clone())).expect("");
-        assert_eq!(
-            Point(
-                _6aapio2_outer_radius * to_rad(45.).cos(),
-                _6aapio2_outer_radius * to_rad(45.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(0).unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 6*π/6
-        centroid = patch.insert_adjacent_tile_by_edge((
-            X.clone(),
-            patch.vertex_stars.get(&X).unwrap().link_vec.get(1).unwrap().clone(), // (0.13,-0.50)
-        )).expect("");
-        assert_eq!(
-            Point(
-                _6apio6_inner_radius * to_rad(225.).cos(),
-                _6apio6_inner_radius * to_rad(225.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(0).unwrap().proto_tiles.get(1).unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 4
-        centroid = patch.insert_adjacent_tile_by_edge((
-            X.clone(),
-            patch.vertex_stars.get(&X).unwrap().link_vec.get(2).unwrap().clone(), // (1.50,-0.87)
-        )).expect("");
-        assert_eq!(
-            &X + &Point(
-                _4_radius * to_rad(255.).cos(),
-                _4_radius * to_rad(255.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(1).unwrap().proto_tiles.get(1).unwrap().clone();
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&ORIGIN);
-        proto_tile.reorient(&ORIGIN);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 6*π/6
-        let start = X.mul(2. * _6aapio2_outer_radius).transform(&Euclid::Rotate(to_rad(45.))); // (2.73, 2.73)
-        let stop = &start - &X; // (1.73, 2.73)
-        let transform = Euclid::Translate((&start - &X).values());
-
-        centroid = patch.insert_adjacent_tile_by_edge((start, stop)).expect("");
-        assert_eq!(
-            &start + &Point(
-                _6apio6_inner_radius * to_rad(45.).cos(),
-                _6apio6_inner_radius * to_rad(45.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(1).unwrap().proto_tiles.get(0).unwrap().clone().transform(&transform);
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&start);
-        proto_tile.reorient(&start);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
-
-        // 4
-        let start = &stop + &X.transform(&Euclid::Rotate(to_rad(30.))); // (2.60,3.23)
-        let stop = stop; // (1.73, 2.73)
-        centroid = patch.insert_adjacent_tile_by_edge((start, stop)).expect("");
-        assert_eq!(
-            &stop + &Point(
-                _4_radius * to_rad(75.).cos(),
-                _4_radius * to_rad(75.).sin(),
-            ),
-            centroid,
-        );
-
-        let tile = patch.tiles.get(&centroid).unwrap();
-        let mut exp_proto_tile = patch.atlas.proto_vertex_stars.get(1).unwrap().proto_tiles.get(1).unwrap().clone().transform(&transform);
-        let mut proto_tile = ProtoTile::new(tile.points.clone());
-        exp_proto_tile.reorient(&start);
-        proto_tile.reorient(&start);
-
-        assert_eq!(exp_proto_tile, proto_tile);
-        for (i, point) in proto_tile.points.iter().enumerate() {
-            println!("{}: {}", i, point);
-            patch.vertex_stars.get(point).unwrap();
-        }
+        patch.insert_tile_by_point(Point(4.600000000000001, 7.396666463216146)).unwrap();
     }
 }

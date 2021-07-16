@@ -1,6 +1,6 @@
 [package]
 name = "schema"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 

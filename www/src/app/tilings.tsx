@@ -3,7 +3,7 @@ import { Autocomplete } from "@material-ui/lab";
 import { Canvas, clearCanvas } from "./canvas";
 import { CircularProgress, TextField } from "@material-ui/core";
 import { debounce } from "util/input";
-import { handleEvent, setTiling, tilingSearch } from "client";
+import { insertTileByPoint, resetTiling, setTiling, tilingSearch } from "client";
 import styles from "./styles.module.scss";
 
 const isMobile = () => window.outerWidth > 800;
@@ -55,6 +55,8 @@ export const Tilings = () => {
         clearCanvas(canvas, true);
         if (textSearchItem) {
           setTiling(canvas, textSearchItem.id);
+        } else {
+          resetTiling();
         }
       }
     },
@@ -102,8 +104,8 @@ export const Tilings = () => {
         ref={canvasRef}
         height={canvasHeight}
         width={canvasWidth}
-        onMouseMove={handleEvent}
-        onTouchMove={handleEvent}
+        onMouseMove={insertTileByPoint}
+        onTouchMove={insertTileByPoint}
       />
     </>
   );

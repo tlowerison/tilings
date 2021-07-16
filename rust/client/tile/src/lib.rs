@@ -1,5 +1,5 @@
 use common::{approx_eq, DEFAULT_PRECISION, fmt_float, hash_float, rad, rev_iter};
-use geometry::{reduce_transforms, Euclid, Generator, Point, Transform, Transformable};
+use geometry::{reduce_transforms, Bounds, Euclid, Generator, Point, Spatial, Transform, Transformable};
 use itertools::{interleave, Itertools, izip};
 use std::{
     f64::consts::{PI, TAU},
@@ -212,24 +212,14 @@ impl Tile {
     }
 
     pub fn closest_edge(&self, point: &Point) -> (Point, Point) {
-        let edges = izip!(
-            self.points.iter(),
-            self.points.iter().skip(1).chain(self.points.first())
-        );
+        let edges = Point::edges(&self.points);
         let mut min = f64::MAX;
-        let mut closest_edge = (self.points.get(0).unwrap(), self.points.get(1).unwrap());
-        for (start, stop) in edges {
-            // Consider the line extending the edge, parameterized as start + t * (stop - start).
-            // We find projection of point onto the line.
-            // It falls where t = [(point-start) . (stop-start)] / |stop-start|^2
-            // Clamp t in [0,1] to handle points outside the edge.
-            let edge = stop - start;
-            let t = ((point - start).dot(&edge) / edge.norm_squared()).clamp(0., 1.);
-            let projection = start + &edge.mul(t);
-            let distance = (point - &projection).norm();
+        let mut closest_edge = edges.get(0).unwrap();
+        for edge in edges.iter() {
+            let distance = edge.distance(point);
             if distance < min {
                 min = distance;
-                closest_edge = (start, stop);
+                closest_edge = &edge;
             }
         }
         if !self.parity {
@@ -237,6 +227,23 @@ impl Tile {
         } else {
             (closest_edge.1.clone(), closest_edge.0.clone())
         }
+    }
+
+    // https://alienryderflex.com/polygon
+    pub fn contains(&self, point: &Point) -> bool {
+        let edges = Point::edges(&self.points);
+        let mut odd_nodes = false;
+        for edge in edges.iter() {
+            let start = edge.0;
+            let stop = edge.1;
+            if
+                ((stop.1 < point.1 && start.1 >= point.1) || (start.1 < point.1 && stop.1 >= point.1)) &&
+                (start.0 <= point.0 || stop.0 <= point.0)
+            {
+                odd_nodes ^= (stop.0 + (point.1 - stop.1) / (start.1 - stop.1) * (start.0 - stop.0)) < point.0;
+            }
+        }
+        odd_nodes
     }
 
     pub fn size(&self) -> usize {
@@ -256,6 +263,48 @@ impl Hash for Tile {
 impl PartialEq for Tile {
     fn eq(&self, other: &Self) -> bool {
         self.centroid == other.centroid
+    }
+}
+
+impl Spatial for Tile {
+    type Hashed = Point;
+
+    fn distance(&self, point: &Point) -> f64 {
+        let edges = Point::edges(&self.points);
+
+        // duplicate Tile::contains to avoid recreating the edges iterator twice
+        let mut odd_nodes = false;
+        for edge in edges.iter() {
+            let start = edge.0;
+            let stop = edge.1;
+            if
+                ((stop.1 < point.1 && start.1 >= point.1) || (start.1 < point.1 && stop.1 >= point.1)) &&
+                (start.0 <= point.0 || stop.0 <= point.0)
+            {
+                odd_nodes ^= (stop.0 + (point.1 - stop.1) / (start.1 - stop.1) * (start.0 - stop.0)) < point.0;
+            }
+        }
+        if odd_nodes {
+            return 0.;
+        }
+
+        // closest edge
+        let mut min_distance = f64::MAX;
+        for edge in edges.iter() {
+            let distance = edge.distance(point);
+            if distance < min_distance {
+                min_distance = distance;
+            }
+        }
+        min_distance
+    }
+
+    fn intersects(&self, bounds: &Bounds) -> bool {
+        Point::edges(&self.points).iter().any(|edge| edge.intersects(bounds))
+    }
+
+    fn key(&self) -> Point {
+        self.centroid.clone()
     }
 }
 
