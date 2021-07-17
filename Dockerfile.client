@@ -13,20 +13,7 @@ FROM rust:1.52.1 AS build-rust
 
   WORKDIR /app/rust
 
-  COPY rust/client/Cargo.toml client/
-  RUN mkdir -p client/src && touch client/src/lib.rs
-
-  COPY rust/client/atlas/Cargo.toml client/atlas/
-  RUN mkdir -p client/atlas/src && touch client/atlas/src/lib.rs
-
-  COPY rust/client/common/Cargo.toml client/common/
-  RUN mkdir -p client/common/src && touch client/common/src/lib.rs
-
-  COPY rust/client/geometry/Cargo.toml client/geometry/
-  RUN mkdir -p client/geometry/src && touch client/geometry/src/lib.rs
-
-  COPY rust/client/tile/Cargo.toml client/tile/
-  RUN mkdir -p client/tile/src && touch client/tile/src/lib.rs
+  COPY rust/client client
 
   COPY rust/server/Cargo.toml server/
   RUN mkdir -p server/src && echo "fn main() {}" > server/src/main.rs
