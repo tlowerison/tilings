@@ -22,7 +22,7 @@ use web_sys::HtmlCanvasElement;
 
 struct Global {
     coloring: Coloring,
-    patch: RefCell<Patch>,
+    patch: RefCell<Patch<()>>,
     tiling_id: i32,
 }
 
@@ -101,7 +101,7 @@ pub fn insertTileByPoint(canvas: HtmlCanvasElement, x: f64, y: f64) -> Result<()
                 let global = global.try_lock().or(Err(JsValue::FALSE))?;
                 global.patch
                     .borrow_mut()
-                    .insert_tile_by_point(from_canvas_point(x, y))
+                    .insert_tile_by_point(from_canvas_point(x, y), Some(()))
                     .map_err(|e| JsValue::from_str(&String::from(format!("{}", e))))?;
 
                 let tile_diffs = global.patch.borrow_mut().drain_tile_diffs();
@@ -113,7 +113,26 @@ pub fn insertTileByPoint(canvas: HtmlCanvasElement, x: f64, y: f64) -> Result<()
     }
 }
 
-fn patch_from_atlas(db_atlas: models::FullAtlas) -> Result<(Patch, Coloring), JsValue> {
+#[wasm_bindgen]
+#[allow(non_snake_case)]
+pub fn getNeighbors(x: f64, y: f64) -> JsValue {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
+    unsafe {
+        match &mut GLOBAL {
+            Some(global) => {
+                let global = match global.try_lock() { Ok(global) => global, _ => return JsValue::FALSE };
+                let x = global.patch
+                    .borrow()
+                    .get_tile_neighbor_centroids(&from_canvas_point(x, y))
+                    .map(|centroids| JsValue::from_str(&format!("{:?}", centroids)))
+                    .unwrap_or_else(|| JsValue::FALSE); x
+            }
+            None => JsValue::FALSE
+        }
+    }
+}
+
+fn patch_from_atlas(db_atlas: models::FullAtlas) -> Result<(Patch<()>, Coloring), JsValue> {
     let patch = Patch::new(
         Atlas::new(&db_atlas).map_err(|e| JsValue::from_str(&e))?,
         (*TILE_TREE_CONFIG).clone(),

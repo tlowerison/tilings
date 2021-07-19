@@ -1,0 +1,15 @@
+#!/bin/sh
+component="$1"
+
+script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
+
+if [[ "$component" == "client" ]]; then
+  cd "$script_dir/rust/client/src"
+  ls -d -- ../*/ | xargs -n1 | grep "[^../src/]" | xargs -n1 -I {} sh -c "cd {} && cargo test"
+elif [[ "$component" == "server" ]]; then
+  cd "$script_dir/rust/server/src"
+  ls -d -- ../*/ | xargs -n1 | grep "[^../src/]" | grep "[^../migrations/]" | grep "[^../schema/]" | xargs -n1 -I {} sh -c "cd {} && cargo test"
+  cd .. && cargo test
+fi
+
+cd "$script_dir"

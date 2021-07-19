@@ -1,7 +1,7 @@
 use crate::{from_data, tables::*};
 use geometry::Point as ClientPoint;
 use serde::{Deserialize, Serialize};
-use tile::ProtoTile;
+use tile::Tile;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPoint {
@@ -31,8 +31,8 @@ pub struct FullPolygonPatch {
 }
 
 impl FullPolygon {
-    pub fn into_proto_tile(&self) -> ProtoTile {
-        ProtoTile::new(
+    pub fn into_tile(&self) -> Tile {
+        Tile::new(
             self
                 .points
                 .iter()

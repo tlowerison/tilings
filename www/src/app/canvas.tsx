@@ -1,6 +1,6 @@
-import React, { MutableRefObject, ReactElement, forwardRef, useCallback, useEffect } from "react";
+import React, { MutableRefObject, ReactElement, forwardRef, useCallback, useEffect, useMemo } from "react";
 
-const pointHandlers = [
+const mouseHandlers = [
   "onMouseDown",
   "onMouseDownCapture",
   "onMouseEnter",
@@ -15,6 +15,9 @@ const pointHandlers = [
   "onMouseOverCapture",
   "onMouseUp",
   "onMouseUpCapture",
+] as const;
+
+const touchHandlers = [
   "onTouchCancel",
   "onTouchCancelCapture",
   "onTouchEnd",
@@ -25,13 +28,17 @@ const pointHandlers = [
   "onTouchStartCapture",
 ] as const;
 
+const mouseHandlerSet = Object.fromEntries(mouseHandlers.map(name => [name, name]));
+
 type PointHandler = (canvas: HTMLCanvasElement, x: number, y: number) => void;
 
 export type Props = {
   height: number;
   width: number;
 } & {
-  [K in ArrayValue<typeof pointHandlers>]?: PointHandler;
+  [K in ArrayValue<typeof mouseHandlers>]?: PointHandler;
+} & {
+  [K in ArrayValue<typeof touchHandlers>]?: PointHandler;
 };
 
 export const Canvas = forwardRef<HTMLCanvasElement, Props>(
@@ -50,23 +57,51 @@ export const Canvas = forwardRef<HTMLCanvasElement, Props>(
       [mutableRef?.current],
     );
 
-    const wrapHandler = useCallback(
-      (handler: PointHandler) => (({ clientX, clientY }) => {
+    const handleEvent = useCallback(
+      (canvas: HTMLCanvasElement, clientX: number, clientY: number, handler: PointHandler) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = (clientX - rect.left) / (rect.right - rect.left) * canvas.width - width / 2;
+        const y = (clientY - rect.top) / (rect.bottom - rect.top) * canvas.height - height / 2;
+        handler(canvas, x, y);
+      },
+      [height, width],
+    );
+
+    const wrapMouseHandler = useMemo(
+      () => {
         const canvas = mutableRef?.current;
         if (canvas) {
-          const rect = canvas.getBoundingClientRect();
-          const x = (clientX - rect.left) / (rect.right - rect.left) * canvas.width - width / 2;
-          const y = (clientY - rect.top) / (rect.bottom - rect.top) * canvas.height - height / 2;
-          handler(canvas, x, y);
+          return (handler: PointHandler) => ({ clientX, clientY }) => handleEvent(canvas, clientX, clientY, handler);
+        } else {
+          return (_: PointHandler) => {};
         }
-      }),
-      [mutableRef?.current],
+      },
+      [handleEvent, mutableRef?.current],
+    );
+
+    const wrapTouchHandler = useMemo(
+      () => {
+        const canvas = mutableRef?.current;
+        if (canvas) {
+          return (handler: PointHandler) => ({ touches = [] }: { touches: Touch[] }) => {
+            for (const touch of touches) {
+              handleEvent(canvas, touch.clientX, touch.clientY, handler);
+            }
+          };
+        } else {
+          return (_: PointHandler) => {};
+        }
+      },
+      [handleEvent, mutableRef?.current],
     );
 
     return (
       <canvas
         ref={ref || undefined}
-        {...Object.fromEntries(Object.entries(handlers).map(([key, handler]) => [key, wrapHandler(handler)]))}
+        {...Object.fromEntries(Object.entries(handlers).map(([key, handler]) => [
+          key,
+          key in mouseHandlerSet ? wrapMouseHandler(handler) : wrapTouchHandler(handler),
+        ]))}
       />
     ) as ReactElement;
   },

@@ -1,41 +1,25 @@
-use common::{approx_eq, DEFAULT_PRECISION, fmt_float, hash_float, rad, rev_iter};
-use geometry::{reduce_transforms, Bounds, Euclid, Generator, Point, Spatial, Transform, Transformable};
+use common::{approx_eq, DEFAULT_PRECISION, hash_float, rad};
+use geometry::{reduce_transforms, Bounds, Edge, Euclid, Generator, Point, Spatial, Transform, Transformable};
 use itertools::{interleave, Itertools, izip};
-use std::{
-    f64::consts::{PI, TAU},
-    hash::{Hash, Hasher},
-    iter,
-};
+use std::{f64::consts::{PI, TAU}, hash::Hash, iter};
 
 #[derive(Clone, Debug)]
-pub struct ProtoTile {
+pub struct Tile {
     pub points: Vec<Point>,
+    pub centroid: Point,
     pub parity: bool,
 }
 
-impl ProtoTile {
-    pub fn new(mut points: Vec<Point>) -> ProtoTile {
+impl Tile {
+    pub fn new(mut points: Vec<Point>) -> Tile {
         assert!(points.len() > 2);
         points.shrink_to_fit();
-        ProtoTile {
+        let centroid = Tile::centroid(&points);
+        Tile {
             points,
+            centroid,
             parity: false,
         }
-    }
-
-    // reorient_about_origin shifts the underlying points of a ProtoTile so that the first
-    // point is the closest to the origin
-    pub fn reorient(&mut self, origin: &Point) {
-        let mut argmin = 0_usize;
-        let mut min = f64::MAX;
-        for (i, point) in self.points.iter().enumerate() {
-            let norm = (point - origin).norm();
-            if norm < min {
-                argmin = i;
-                min = norm;
-            }
-        }
-        self.points.rotate_left(argmin);
     }
 
     // angle returns the angle in radians between the line segments drawn between (point_index-1,point_index) and (point_index,point_index+1)
@@ -47,21 +31,21 @@ impl ProtoTile {
         let point = match points.get(point_index) {
             Some(point) => point,
             None => panic!(
-                "failed to find angle: index is out of bounds for ProtoTile {:?}",
+                "failed to find angle: index is out of bounds for Tile {:?}",
                 self
             ),
         };
         let point1 = match points.get((point_index + (size - 1)) % size) {
             Some(point) => point,
             None => panic!(
-                "failed to find angle: preceding index is out of bounds for ProtoTile {:?}",
+                "failed to find angle: preceding index is out of bounds for Tile {:?}",
                 self
             ),
         };
         let point2 = match points.get((point_index + 1) % size) {
             Some(point) => point,
             None => panic!(
-                "failed to find angle: succeeding index is out of bounds for ProtoTile {:?}",
+                "failed to find angle: succeeding index is out of bounds for Tile {:?}",
                 self
             ),
         };
@@ -69,12 +53,9 @@ impl ProtoTile {
         rad(if self.parity { TAU - angle } else { angle })
     }
 
+    // angles returns all angles of the tile
     pub fn angles(&self) -> Vec<f64> {
         (0..self.size()).map(|point_index| self.angle(point_index)).collect()
-    }
-
-    pub fn angles_str(&self) -> String {
-        self.angles().into_iter().map(|angle| format!("{}", fmt_float(angle / TAU * 360., 2))).collect::<Vec<String>>().join(" ")
     }
 
     // assert_angles asserts that all angles equal those provided
@@ -99,7 +80,7 @@ impl ProtoTile {
             .map(|(i, a)| {
                 let b = match self.points.get((i + 1) % size) {
                     Some(point) => point,
-                    None => panic!("could not find point {} for ProtoTile {:?}", i, self),
+                    None => panic!("could not find point {} for Tile {:?}", i, self),
                 };
                 (b - a).norm()
             })
@@ -132,86 +113,8 @@ impl ProtoTile {
         }
     }
 
-    pub fn centroid(&self) -> Point {
-        // calc area
-        let mut points = self.points.clone();
-        points.rotate_right(1);
-        let terms = izip!(self.points.iter(), points.iter())
-            .map(|(p0, p1)| {
-                let conv = p0.0 * p1.1 - p0.1 * p1.0;
-                (conv, conv * (p0.0 + p1.0), conv * (p0.1 + p1.1))
-            })
-            .reduce(|(a0, a1, a2), (e0, e1, e2)| (a0 + e0, a1 + e1, a2 + e2))
-            .unwrap();
-        let area = terms.0 / 2.;
-        Point(terms.1 / (6. * area), terms.2 / (6. * area))
-    }
-
-    pub fn size(&self) -> usize {
-        self.points.len()
-    }
-}
-
-impl Eq for ProtoTile {}
-
-// hash angles up to two decimals
-impl Hash for ProtoTile {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        for i in rev_iter(self.parity, 0..self.size()) {
-            hash_float(self.angle(i), DEFAULT_PRECISION).hash(state);
-        }
-    }
-}
-
-impl PartialEq for ProtoTile {
-    fn eq(&self, other: &Self) -> bool {
-        if self.size() != other.size() {
-            return false;
-        }
-        for (self_i, other_i) in izip!(
-            rev_iter(self.parity, 0..self.size()),
-            rev_iter(other.parity, 0..other.size())
-        ) {
-            if hash_float(self.angle(self_i), DEFAULT_PRECISION) != hash_float(other.angle(other_i), DEFAULT_PRECISION) {
-                return false;
-            }
-        }
-        return true;
-    }
-}
-
-impl<'a> Transformable<'a> for ProtoTile {
-    fn transform<T: Transform>(&self, transform: &'a T) -> Self {
-        let affine = transform.as_affine();
-        ProtoTile {
-            points: self
-                .points
-                .iter()
-                .map(|point| point.transform(&affine))
-                .collect(),
-            parity: self.parity ^ affine.is_flip(),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct Tile {
-    pub points: Vec<Point>,
-    pub centroid: Point,
-    pub parity: bool,
-}
-
-impl Tile {
-    pub fn new(proto_tile: ProtoTile, parity: bool) -> Tile {
-        let centroid = proto_tile.centroid();
-        Tile {
-            centroid,
-            parity,
-            points: proto_tile.points.into_iter().collect::<Vec<Point>>(),
-        }
-    }
-
-    pub fn closest_edge(&self, point: &Point) -> (Point, Point) {
+    // closest_edge finds the closest edge in the tile to the provided point
+    pub fn closest_edge<'a>(&'a self, point: &Point) -> Edge<'a> {
         let edges = Point::edges(&self.points);
         let mut min = f64::MAX;
         let mut closest_edge = edges.get(0).unwrap();
@@ -223,12 +126,13 @@ impl Tile {
             }
         }
         if !self.parity {
-            (closest_edge.0.clone(), closest_edge.1.clone())
+            Edge(closest_edge.0, closest_edge.1)
         } else {
-            (closest_edge.1.clone(), closest_edge.0.clone())
+            Edge(closest_edge.1, closest_edge.0)
         }
     }
 
+    // contains determines whether or not the provided point is contained within the tile
     // https://alienryderflex.com/polygon
     pub fn contains(&self, point: &Point) -> bool {
         let edges = Point::edges(&self.points);
@@ -246,8 +150,39 @@ impl Tile {
         odd_nodes
     }
 
+    // reorient_about_origin shifts the underlying points of a Tile so that the first
+    // point is the closest to the origin
+    pub fn reorient(&mut self, origin: &Point) {
+        let mut argmin = 0_usize;
+        let mut min = f64::MAX;
+        for (i, point) in self.points.iter().enumerate() {
+            let norm = (point - origin).norm();
+            if norm < min {
+                argmin = i;
+                min = norm;
+            }
+        }
+        self.points.rotate_left(argmin);
+    }
+
+    // size returns the number of points of the tile
     pub fn size(&self) -> usize {
         self.points.len()
+    }
+
+    // centroid computes the centroid of the provided points
+    fn centroid(points: &Vec<Point>) -> Point {
+        // calc area
+        let terms = Point::edges(points)
+            .into_iter()
+            .map(|Edge(p0, p1)| {
+                let conv = p0.0 * p1.1 - p0.1 * p1.0;
+                (conv, conv * (p0.0 + p1.0), conv * (p0.1 + p1.1))
+            })
+            .reduce(|(a0, a1, a2), (e0, e1, e2)| (a0 + e0, a1 + e1, a2 + e2))
+            .unwrap();
+        let area = terms.0 / 2.;
+        Point(terms.1 / (6. * area), terms.2 / (6. * area))
     }
 }
 
@@ -323,7 +258,7 @@ impl<'a> Transformable<'a> for Tile {
     }
 }
 
-pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
+pub fn regular_polygon(side_length: f64, num_sides: usize) -> Tile {
     if num_sides < 3 || side_length <= 0. {
         panic!("invalid regular polygon: side_length = {}, num_sides = {}", side_length, num_sides);
     }
@@ -344,7 +279,7 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
 
     let mut generator = Generator::new(affine);
 
-    let proto_tile = ProtoTile::new(
+    let tile = Tile::new(
         iter::repeat(Point(0., 0.))
             .take(num_sides)
             .enumerate()
@@ -352,19 +287,19 @@ pub fn regular_polygon(side_length: f64, num_sides: usize) -> ProtoTile {
             .collect(),
     );
 
-    proto_tile.assert_angles(
+    tile.assert_angles(
         iter::repeat(2. * centroid_angle_of_inclination)
             .take(num_sides)
             .collect(),
     );
-    proto_tile.assert_sides(iter::repeat(side_length).take(num_sides).collect());
+    tile.assert_sides(iter::repeat(side_length).take(num_sides).collect());
 
-    proto_tile
+    tile
 }
 
-// star_polygon returns a ProtoTile with 2 * num_base_sides points, where each point which
+// star_polygon returns a Tile with 2 * num_base_sides points, where each point which
 // was included in the original regular polygon has its internal angle set to the provided value.
-pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64) -> ProtoTile {
+pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64) -> Tile {
     if num_base_sides < 3 {
         panic!("invalid star polygon: side_length = {}, num_sides = {}", side_length, num_base_sides);
     }
@@ -387,7 +322,7 @@ pub fn star_polygon(side_length: f64, num_base_sides: usize, internal_angle: f64
     let mut dented_points = interleave(base.points.clone().into_iter(), indented_points.into_iter()).collect_vec();
     dented_points.shrink_to_fit();
 
-    ProtoTile::new(dented_points)
+    Tile::new(dented_points)
 }
 
 #[cfg(test)]
@@ -400,23 +335,23 @@ mod tests {
 
     #[test]
     fn test_tile_closest_edge() {
-        let square = Tile::new(regular_polygon(1., 4), false);
+        let square = regular_polygon(1., 4);
 
         let edge = square.closest_edge(&Point::new((0.5, -0.5)));
-        assert_eq!(Point(0., 0.), edge.0);
-        assert_eq!(Point(1., 0.), edge.1);
+        assert_eq!(&Point(0., 0.), edge.0);
+        assert_eq!(&Point(1., 0.), edge.1);
 
         let edge = square.closest_edge(&Point::new((1.5, 0.5)));
-        assert_eq!(Point(1., 0.), edge.0);
-        assert_eq!(Point(1., 1.), edge.1);
+        assert_eq!(&Point(1., 0.), edge.0);
+        assert_eq!(&Point(1., 1.), edge.1);
 
         let edge = square.closest_edge(&Point::new((0.5, 1.5)));
-        assert_eq!(Point(1., 1.), edge.0);
-        assert_eq!(Point(0., 1.), edge.1);
+        assert_eq!(&Point(1., 1.), edge.0);
+        assert_eq!(&Point(0., 1.), edge.1);
 
         let edge = square.closest_edge(&Point::new((-0.5, 0.5)));
-        assert_eq!(Point(0., 1.), edge.0);
-        assert_eq!(Point(0., 0.), edge.1);
+        assert_eq!(&Point(0., 1.), edge.0);
+        assert_eq!(&Point(0., 0.), edge.1);
     }
 
     #[test]

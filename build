@@ -17,6 +17,9 @@ if [[ "$component" != "client" && "$component" != "server" ]]; then
   exit 1
 fi
 
+script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
+sh "$script_dir/test" "$component"
+
 default_args=()
 if [[ "$component" == "client" ]]; then
   default_args=("--build-arg" "SERVER_HOST=https://tlowerison.com")

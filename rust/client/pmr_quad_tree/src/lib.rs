@@ -2,8 +2,8 @@ use common::DEFAULT_F64_MARGIN;
 use float_cmp::ApproxEq;
 use geometry::*;
 use std::{
-    borrow::Borrow,
     boxed::Box,
+    cell::{BorrowMutError, Ref, RefCell, RefMut},
     cmp::{Ordering, Reverse},
     collections::{BinaryHeap, HashMap},
     hash::Hash,
@@ -22,63 +22,145 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Tree<K: Eq + Hash, S: Spatial<Hashed = K>> {
     pub config: Config,
-    pub root: Node<S>,
-    pub items: HashMap<K, Rc<S>>,
+    pub root: Node<K, S>,
+    pub items: HashMap<K, RcItem<K, S>>,
+    pub should_find_neighbors: bool,
 }
 
 #[derive(Debug)]
-pub enum NodeType<S: Spatial> {
-    InnerNode(Box<InnerNode<S>>),
-    Leaf(Leaf<S>),
+pub enum NodeType<K: Eq + Hash, S: Spatial<Hashed = K>> {
+    InnerNode(Box<InnerNode<K, S>>),
+    Leaf(Leaf<K, S>),
 }
 
 #[derive(Debug)]
-pub struct Node<S: Spatial> {
-    node: NodeType<S>,
+pub struct Node<K: Eq + Hash, S: Spatial<Hashed = K>> {
+    node: NodeType<K, S>,
 }
 
-impl<S: Spatial> From<Leaf<S>> for Node<S> {
-    fn from(leaf: Leaf<S>) -> Node<S> {
+#[derive(Debug)]
+pub struct InnerNode<K: Eq + Hash, S: Spatial<Hashed = K>> {
+    pub bounds: Bounds,
+    pub level: u8,
+    pub ne: Node<K, S>,
+    pub nw: Node<K, S>,
+    pub se: Node<K, S>,
+    pub sw: Node<K, S>,
+}
+
+#[derive(Debug)]
+pub struct Leaf<K: Eq + Hash, S: Spatial<Hashed = K>> {
+    pub bounds: Bounds,
+    pub items: Vec<WeakItem<K, S>>,
+    pub level: u8,
+}
+
+#[derive(Debug)]
+pub struct Item<K: Eq + Hash, S: Spatial<Hashed = K>> {
+    pub value: RefCell<S>,
+    pub neighbors: RefCell<Neighbors<K, S>>,
+}
+
+#[derive(Debug)]
+pub struct RcItem<K: Eq + Hash, S: Spatial<Hashed = K>>(Rc<Item<K, S>>);
+
+pub struct WeakItem<K: Eq + Hash, S: Spatial<Hashed = K>>(Weak<Item<K, S>>);
+
+pub struct Neighbor<K: Eq + Hash, S: Spatial<Hashed = K>> {
+    pub distance: f64,
+    pub item: WeakItem<K, S>,
+}
+
+pub type Neighbors<K, S> = HashMap<K, WeakItem<K, S>>;
+
+type BoundingLeaf<'b, K, S> = Option<&'b Leaf<K, S>>;
+
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> RcItem<K, S> {
+    fn new(value: S) -> RcItem<K, S> {
+        RcItem(Rc::new(Item {
+            value: RefCell::new(value),
+            neighbors: RefCell::new(HashMap::with_capacity(0)),
+        }))
+    }
+
+    pub fn value(&self) -> Ref<S> {
+        self.0.value.borrow()
+    }
+
+    pub fn value_mut(&mut self) -> Result<RefMut<S>, BorrowMutError> {
+        self.0.value.try_borrow_mut()
+    }
+
+    pub fn neighbors(&self) -> Ref<Neighbors<K, S>> {
+        self.0.neighbors.borrow()
+    }
+
+    pub fn neighbors_mut(&mut self) -> Result<RefMut<Neighbors<K, S>>, BorrowMutError> {
+        self.0.neighbors.try_borrow_mut()
+    }
+
+    pub fn downgrade(&self) -> WeakItem<K, S> {
+        WeakItem(Rc::downgrade(&self.0))
+    }
+}
+
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> Clone for RcItem<K, S> {
+    fn clone(&self) -> RcItem<K, S> {
+        RcItem(self.0.clone())
+    }
+}
+
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> WeakItem<K, S> {
+    pub fn upgrade(&self) -> Option<RcItem<K, S>> {
+        self.0.upgrade().map(|rc| RcItem(rc))
+    }
+
+    pub fn distance(&self, point: &Point) -> Option<f64> {
+        self.upgrade().map(|rc_item| rc_item.value().distance(point))
+    }
+
+    pub fn intersects(&self, bounds: &Bounds) -> Option<bool> {
+        self.upgrade().map(|rc_item| rc_item.value().intersects(bounds))
+    }
+
+    pub fn key(&self) -> Option<K> {
+        self.upgrade().map(|rc_item| rc_item.value().key())
+    }
+}
+
+impl<K: Eq + Hash, S: Spatial<Hashed = K> + std::fmt::Debug> std::fmt::Debug for WeakItem<K, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self.upgrade() {
+            None => write!(f, "(Weak)"),
+            Some(rc_item) => write!(f, "{:#?}", rc_item.value()),
+        }
+    }
+}
+
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> Clone for WeakItem<K, S> {
+    fn clone(&self) -> WeakItem<K, S> {
+        WeakItem(self.0.clone())
+    }
+}
+
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> From<Leaf<K, S>> for Node<K, S> {
+    fn from(leaf: Leaf<K, S>) -> Node<K, S> {
         Node {
             node: NodeType::Leaf(leaf)
         }
     }
 }
 
-impl<S: Spatial> From<InnerNode<S>> for Node<S> {
-    fn from(inner_node: InnerNode<S>) -> Node<S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> From<InnerNode<K, S>> for Node<K, S> {
+    fn from(inner_node: InnerNode<K, S>) -> Node<K, S> {
         Node {
             node: NodeType::InnerNode(Box::new(inner_node))
         }
     }
 }
 
-#[derive(Debug)]
-pub struct Leaf<S: Spatial> {
-    pub bounds: Bounds,
-    pub items: Vec<Weak<S>>,
-    pub level: u8,
-}
-
-#[derive(Debug)]
-pub struct InnerNode<S: Spatial> {
-    pub bounds: Bounds,
-    pub level: u8,
-    pub ne: Node<S>,
-    pub nw: Node<S>,
-    pub se: Node<S>,
-    pub sw: Node<S>,
-}
-
-type BoundingLeaf<'b, S> = Option<&'b Leaf<S>>;
-
-pub struct Neighbor<S: Spatial> {
-    pub distance: f64,
-    pub item: Weak<S>,
-}
-
-impl<S: Spatial> Leaf<S> {
-    fn new(level: u8, bounds: Bounds) -> Leaf<S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> Leaf<K, S> {
+    fn new(level: u8, bounds: Bounds) -> Leaf<K, S> {
         Leaf { level, bounds, items: Vec::new() }
     }
 
@@ -89,7 +171,7 @@ impl<S: Spatial> Leaf<S> {
         return self.items.len() > config.splitting_threshold
     }
 
-    fn split(&self) -> InnerNode<S> {
+    fn split(&self) -> InnerNode<K, S> {
         let split_bounds  = self.bounds.split();
 
         let mut leaves = [
@@ -101,8 +183,8 @@ impl<S: Spatial> Leaf<S> {
 
         for item in self.items.iter() {
             for leaf in leaves.iter_mut() {
-                if let Some(rc_item) = item.upgrade() {
-                    if rc_item.as_ref().borrow().intersects(&leaf.bounds) {
+                if let Some(intersects) = item.intersects(&leaf.bounds) {
+                    if intersects {
                         leaf.items.push(item.clone());
                     }
                 }
@@ -120,19 +202,18 @@ impl<S: Spatial> Leaf<S> {
         }
     }
 
-    fn bounding_leaf<'b>(&'b self, point: &Point) -> BoundingLeaf<'b, S> {
+    fn bounding_leaf<'b>(&'b self, point: &Point) -> BoundingLeaf<'b, K, S> {
         if !point.intersects(&self.bounds) {
             return None
         }
         Some(&self)
     }
 
-    fn nearest_neighbor(&self, point: &Point) -> Option<Neighbor<S>> {
+    fn nearest_neighbor(&self, point: &Point) -> Option<Neighbor<K, S>> {
         let mut min_distance = std::f64::MAX;
-        let mut arg_min: Option<Neighbor<S>> = None;
+        let mut arg_min: Option<Neighbor<K, S>> = None;
         for item in self.items.iter() {
-            if let Some(rc_item) = item.upgrade() {
-                let distance = rc_item.as_ref().borrow().distance(point);
+            if let Some(distance) = item.distance(point) {
                 if distance < min_distance {
                     min_distance = distance;
                     arg_min = Some(Neighbor { distance, item: item.clone() });
@@ -142,15 +223,15 @@ impl<S: Spatial> Leaf<S> {
         arg_min
     }
 
-    fn is_nearest_neighbor_candidate_leaf<'b>(&'b self, point: &Point, candidate_radius: f64, candidates: &mut Vec<&'b Leaf<S>>) {
+    fn is_nearest_neighbor_candidate_leaf<'b>(&'b self, point: &Point, candidate_radius: f64, candidates: &mut Vec<&'b Leaf<K, S>>) {
         if self.bounds.distance(point) <= candidate_radius {
             candidates.push(&self);
         }
     }
 }
 
-impl<S: Spatial> InnerNode<S> {
-    fn bounding_leaf<'b>(&'b self, point: &Point) -> BoundingLeaf<'b, S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> InnerNode<K, S> {
+    fn bounding_leaf<'b>(&'b self, point: &Point) -> BoundingLeaf<'b, K, S> {
         if !point.intersects(&self.bounds) {
             return None
         }
@@ -162,11 +243,11 @@ impl<S: Spatial> InnerNode<S> {
         None
     }
 
-    fn children<'b>(&'b self) -> [&'b Node<S>; 4] {
+    fn children<'b>(&'b self) -> [&'b Node<K, S>; 4] {
         [&self.ne, &self.nw, &self.se, &self.sw]
     }
 
-    fn find_nearest_neighbor_candidate_leaves<'b>(&'b self, point: &Point, candidate_radius: f64, candidates: &mut Vec<&'b Leaf<S>>) {
+    fn find_nearest_neighbor_candidate_leaves<'b>(&'b self, point: &Point, candidate_radius: f64, candidates: &mut Vec<&'b Leaf<K, S>>) {
         for child in self.children().iter() {
             if child.bounds().distance(point) <= candidate_radius {
                 child.find_nearest_neighbor_candidate_leaves(point, candidate_radius, candidates);
@@ -175,7 +256,7 @@ impl<S: Spatial> InnerNode<S> {
     }
 }
 
-impl<S: Spatial> Node<S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> Node<K, S> {
     fn bounds<'b>(&'b self) -> &'b Bounds {
         match &self.node {
             NodeType::InnerNode(inner_node) => &(*inner_node).bounds,
@@ -183,16 +264,16 @@ impl<S: Spatial> Node<S> {
         }
     }
 
-    fn bounding_leaf<'b>(&'b self, point: &Point) -> BoundingLeaf<'b, S> {
+    fn bounding_leaf<'b>(&'b self, point: &Point) -> BoundingLeaf<'b, K, S> {
         match &self.node {
             NodeType::InnerNode(inner_node) => (*inner_node).bounding_leaf(point),
             NodeType::Leaf(leaf) => leaf.bounding_leaf(point),
         }
     }
 
-    fn insert(&mut self, item: &Rc<S>, config: &Config) {
-        if !item.as_ref().borrow().intersects(self.bounds()) { return }
-        let mut new_node: Option<Node<S>> = None;
+    fn insert(&mut self, item: &RcItem<K, S>, config: &Config) {
+        if !item.value().intersects(self.bounds()) { return }
+        let mut new_node: Option<Node<K, S>> = None;
         match &mut self.node {
             NodeType::InnerNode(inner_node) => {
                 (*inner_node).ne.insert(item, config);
@@ -201,7 +282,7 @@ impl<S: Spatial> Node<S> {
                 (*inner_node).sw.insert(item, config);
             },
             NodeType::Leaf(leaf) => {
-                leaf.items.push(Rc::downgrade(item));
+                leaf.items.push(item.downgrade());
                 if leaf.is_full(config) {
                     new_node = Some(Node::from(leaf.split()));
                 }
@@ -212,7 +293,7 @@ impl<S: Spatial> Node<S> {
         }
     }
 
-    fn find_nearest_neighbor_candidate_leaves<'b>(&'b self, point: &Point, candidate_radius: f64, candidates: &mut Vec<&'b Leaf<S>>) {
+    fn find_nearest_neighbor_candidate_leaves<'b>(&'b self, point: &Point, candidate_radius: f64, candidates: &mut Vec<&'b Leaf<K, S>>) {
         match &self.node {
             NodeType::InnerNode(inner_node) => (*inner_node).find_nearest_neighbor_candidate_leaves(point, candidate_radius, candidates),
             NodeType::Leaf(leaf) => leaf.is_nearest_neighbor_candidate_leaf(point, candidate_radius, candidates),
@@ -221,10 +302,11 @@ impl<S: Spatial> Node<S> {
 }
 
 impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
-    pub fn new(config: Config) -> Tree<K, S> {
+    pub fn new(config: Config, should_find_neighbors: bool) -> Tree<K, S> {
         let radius = config.initial_radius;
         Tree {
             config,
+            should_find_neighbors,
             root: Node::from(Leaf::new(0, Bounds { center: ORIGIN, radius })),
             items: HashMap::new(),
         }
@@ -234,16 +316,16 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
         match self.get(key) { Some(_) => true, None => false }
     }
 
-    pub fn insert(&mut self, item: S) -> Option<Rc<S>> {
-        let key = item.key(); // only call once, clones
+    pub fn insert(&mut self, value: S) -> Option<RcItem<K, S>> {
+        let key = value.key(); // only call once, clones
 
-        if let Some(item_rc) = self.get(&key) {
-            return Some(item_rc)
+        if let Some(rc_item) = self.get(&key) {
+            return Some(rc_item)
         }
 
         // insert if intersects
-        if item.intersects(self.root.bounds()) {
-            let item = self.items.entry(key).or_insert(Rc::new(item));
+        if value.intersects(self.root.bounds()) {
+            let item = self.items.entry(key).or_insert(RcItem::new(value));
             self.root.insert(item, &self.config);
             return None;
         }
@@ -321,18 +403,18 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
         });
 
         // try inserting again
-        return self.insert(item);
+        return self.insert(value);
     }
 
-    pub fn get(&self, key: &K) -> Option<Rc<S>> {
-        if let Some(item_rc) = self.items.get(&key) {
-            return Some(item_rc.clone())
+    pub fn get(&self, key: &K) -> Option<RcItem<K, S>> {
+        if let Some(rc_item) = self.items.get(&key) {
+            return Some(rc_item.clone())
         }
         None
     }
 
     // https://www.cs.umd.edu/~hjs/pubs/ssd91.pdf - Section 5
-    pub fn nearest_neighbor<'b>(&'b self, point: &Point) -> Result<Neighbor<S>, String> {
+    pub fn nearest_neighbor<'b>(&'b self, point: &Point) -> Result<Neighbor<K, S>, String> {
         let bounding_leaf = match self.root.bounding_leaf(point) {
             Some(leaf) => leaf,
             // this may or may not work - need to test out - kind of an approximation
@@ -341,7 +423,7 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
                 None => return Err(format!("no bounding leaf: {}", point + &self.root.bounds().distance_vector(point))),
             },
         };
-        let mut candidate_leaves: Vec<&'b Leaf<S>> = vec![];
+        let mut candidate_leaves: Vec<&'b Leaf<K, S>> = vec![];
         let mut neighbors = BinaryHeap::new();
 
         self.root.find_nearest_neighbor_candidate_leaves(point, 4. * 2_f64.sqrt() * bounding_leaf.bounds.radius, &mut candidate_leaves);
@@ -359,21 +441,21 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
 }
 
 
-impl<S: Spatial> Eq for Neighbor<S> {}
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> Eq for Neighbor<K, S> {}
 
-impl<S: Spatial> Ord for Neighbor<S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> Ord for Neighbor<K, S> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.distance.partial_cmp(&other.distance).unwrap()
     }
 }
 
-impl<S: Spatial> PartialEq for Neighbor<S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> PartialEq for Neighbor<K, S> {
     fn eq(&self, other: &Self) -> bool {
         self.distance.eq(&other.distance)
     }
 }
 
-impl<S: Spatial> PartialOrd for Neighbor<S> {
+impl<K: Eq + Hash, S: Spatial<Hashed = K>> PartialOrd for Neighbor<K, S> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.distance.partial_cmp(&other.distance)
     }
@@ -416,13 +498,13 @@ mod tests {
             initial_radius: 100.,
             max_depth: 40,
             splitting_threshold: 10,
-        });
+        }, false);
 
-        let square = ProtoTile::new(vec![Point(0., 0.), Point(1., 0.), Point(1., 1.), Point(0., 1.)]);
+        let square = Tile::new(vec![Point(0., 0.), Point(1., 0.), Point(1., 1.), Point(0., 1.)]);
 
-        tree.insert(Tile::new(square.transform(&Euclid::Translate((0., 0.))), false));
-        tree.insert(Tile::new(square.transform(&Euclid::Translate((2., 2.))), false));
-        tree.insert(Tile::new(square.transform(&Euclid::Translate((-4., -4.))), false));
+        tree.insert(square.transform(&Euclid::Translate((0., 0.))));
+        tree.insert(square.transform(&Euclid::Translate((2., 2.))));
+        tree.insert(square.transform(&Euclid::Translate((-4., -4.))));
 
         tree.nearest_neighbor(&Point(0.5, 0.5)).expect("foo");
         tree.nearest_neighbor(&Point(0.5, 0.5)).expect("foo");
@@ -1639,8 +1721,26 @@ mod tests {
                 )),
             },
             items: HashMap::new(),
+            should_find_neighbors: false,
         };
 
         tree.root.bounding_leaf(&Point(0.3666666666666686, 2.196666463216146)).ok_or("foo").expect("foo");
+    }
+
+    #[test]
+    pub fn test_neighbors() {
+        let mut tree = Tree::new(Config {
+            initial_radius: 100.,
+            max_depth: 40,
+            splitting_threshold: 10,
+        }, true);
+
+        let square = Tile::new(vec![Point(0., 0.), Point(1., 0.), Point(1., 1.), Point(0., 1.)]);
+
+        tree.insert(square.transform(&Euclid::Translate((0., 0.))));
+        tree.insert(square.transform(&Euclid::Translate((2., 2.))));
+        tree.insert(square.transform(&Euclid::Translate((-4., -4.))));
+
+        tree.nearest_neighbor(&Point(0.5, 0.5)).expect("foo");
     }
 }

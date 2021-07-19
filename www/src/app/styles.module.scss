@@ -1,7 +1,7 @@
 .search {
   padding: 0.25em 0.5em;
   margin-bottom: 25px;
-  width: 400px;
+  width: min(400px, 80%);
 }
 
 .title {

@@ -3,6 +3,13 @@ import React, { ReactElement } from "react";
 import ReactDOM from "react-dom";
 import styles from "./styles.module.scss";
 import { BrowserRouter as Router } from "react-router-dom";
+import { ThemeProvider, createMuiTheme } from "@material-ui/core/styles";
+
+const muiTheme = createMuiTheme({
+  typography: {
+    fontFamily: "monospace",
+  },
+});
 
 (async () => {
   const { App } = await import("app");
@@ -11,7 +18,9 @@ import { BrowserRouter as Router } from "react-router-dom";
     (
       <div className={styles.app}>
         <Router basename="/tilings">
-          <App />
+          <ThemeProvider theme={muiTheme}>
+            <App />
+          </ThemeProvider>
         </Router>
       </div>
     ) as ReactElement,

@@ -378,7 +378,7 @@ pub mod client {
     use geometry::{Euclid, ORIGIN, Transformable};
     use itertools::{Itertools, izip};
     use std::{collections::HashSet, f64::consts::TAU, iter};
-    use tile::ProtoTile;
+    use tile::Tile;
 
     #[derive(Clone, Debug)]
     pub struct ProtoNeighbor {
@@ -392,8 +392,8 @@ pub mod client {
     #[derive(Debug)]
     pub struct ProtoVertexStar {
         pub index: usize,
-        pub proto_tiles: Vec<ProtoTile>,
-        pub proto_neighbors: Vec<ProtoNeighbor>, // proto_neighbors[i].transform.translate == proto_edges[i].proto_tile.points[i+1]
+        pub tiles: Vec<Tile>,
+        pub proto_neighbors: Vec<ProtoNeighbor>, // proto_neighbors[i].transform.translate == proto_edges[i].tile.points[i+1]
     }
 
     #[derive(Clone, Debug)]
@@ -405,7 +405,7 @@ pub mod client {
 
     impl ProtoVertexStar {
         pub fn size(&self) -> usize {
-            self.proto_tiles.len()
+            self.tiles.len()
         }
 
         pub fn index(&self, index: usize, delta: isize) -> usize {
@@ -420,7 +420,7 @@ pub mod client {
 
     #[derive(Debug)]
     pub struct Atlas {
-        pub proto_tiles: Vec<ProtoTile>,
+        pub tiles: Vec<Tile>,
         pub proto_vertex_stars: Vec<ProtoVertexStar>,
     }
 
@@ -429,65 +429,65 @@ pub mod client {
             // collect all proto tiles belonging to all vertices prior to
             // building vertices to be able to reference other vertices
             // while building their neighbors
-            let mut all_proto_tiles: Vec<Vec<ProtoTile>> = Vec::with_capacity(config.vertices.len());
+            let mut all_tiles: Vec<Vec<Tile>> = Vec::with_capacity(config.vertices.len());
             for (i, vertex) in config.vertices.iter().enumerate() {
-                let mut proto_tiles: Vec<ProtoTile> = Vec::with_capacity(vertex.edges.len());
+                let mut tiles: Vec<Tile> = Vec::with_capacity(vertex.edges.len());
                 let mut rotation = 0.;
                 for (j, edge) in vertex.edges.iter().enumerate() {
-                    let base_proto_tile = config.polygons
+                    let base_tile = config.polygons
                         .get(edge.polygon_index)
-                        .map(FullPolygon::into_proto_tile)
+                        .map(FullPolygon::into_tile)
                         .ok_or(String::from(format!(
                             "polygon {} is missing in vertex {} spec",
                             edge.polygon_index,
                             j,
                         )))?;
 
-                    let point = match base_proto_tile.points.get(edge.point_index) {
+                    let point = match base_tile.points.get(edge.point_index) {
                         Some(point) => point,
                         None => return Err(String::from(format!(
-                            "vertex {}, edge {} has missing point for index {} - ProtoTile == {:?}",
+                            "vertex {}, edge {} has missing point for index {} - Tile == {:?}",
                             i,
                             j,
                             edge.point_index,
-                            base_proto_tile,
+                            base_tile,
                         ))),
                     };
 
-                    let mut proto_tile = base_proto_tile.transform(&Euclid::Translate(point.neg().values()));
+                    let mut tile = base_tile.transform(&Euclid::Translate(point.neg().values()));
 
-                    let next_point = match proto_tile.points.get((edge.point_index + 1) % base_proto_tile.size()) {
+                    let next_point = match tile.points.get((edge.point_index + 1) % base_tile.size()) {
                         Some(point) => point.clone(),
                         None => return Err(String::from(format!(
-                            "vertex {}, edge {} has missing point for index {} - ProtoTile == {:?}",
+                            "vertex {}, edge {} has missing point for index {} - Tile == {:?}",
                             i,
                             j,
-                            (edge.point_index + 1) % base_proto_tile.size(),
-                            base_proto_tile,
+                            (edge.point_index + 1) % base_tile.size(),
+                            base_tile,
                         ))),
                     };
 
-                    let angle = proto_tile.angle(edge.point_index);
+                    let angle = tile.angle(edge.point_index);
 
-                    proto_tile = proto_tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
-                    proto_tile.reorient(&ORIGIN);
+                    tile = tile.transform(&Euclid::Rotate(-(next_point.arg() - rotation)));
+                    tile.reorient(&ORIGIN);
 
-                    proto_tiles.extend(vec![proto_tile]);
+                    tiles.extend(vec![tile]);
                     rotation += angle;
                 }
                 if !rotation.approx_eq(TAU, DEFAULT_F64_MARGIN) {
-                    return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{:#?}\n{:#?}", i, fmt_float(rotation * 360. / TAU, 2), vertex, proto_tiles)))
+                    return Err(String::from(format!("vertex {} - prototiles don't fit together perfectly - expected 360° fill but received ~{}°\n{:#?}\n{:#?}", i, fmt_float(rotation * 360. / TAU, 2), vertex, tiles)))
                 }
-                all_proto_tiles.extend(iter::once(proto_tiles));
+                all_tiles.extend(iter::once(tiles));
             }
 
             let mut proto_vertex_stars: Vec<ProtoVertexStar> = Vec::with_capacity(config.vertices.len());
-            for (i, (vertex, proto_tiles)) in izip!(config.vertices.iter(), all_proto_tiles.iter()).enumerate() {
+            for (i, (vertex, tiles)) in izip!(config.vertices.iter(), all_tiles.iter()).enumerate() {
                 let mut proto_neighbors: Vec<ProtoNeighbor> = Vec::with_capacity(vertex.edges.len());
-                for (edge, proto_tile) in izip!(vertex.edges.iter(), proto_tiles.iter()) {
-                    let edge_point = proto_tile.points.get(1).unwrap();
+                for (edge, tile) in izip!(vertex.edges.iter(), tiles.iter()) {
+                    let edge_point = tile.points.get(1).unwrap();
 
-                    let neighbor_edge_point = all_proto_tiles
+                    let neighbor_edge_point = all_tiles
                         .get(edge.neighbor_index)
                         .ok_or(String::from("Invalid neighbor index in edge"))?
                         .get(edge.point_index)
@@ -505,28 +505,28 @@ pub mod client {
                             rotate: rad(edge_point.neg().arg() - neighbor_edge_point.arg()),
                         },
                         forward_tile_index: i,
-                        reverse_tile_index: (i + proto_tiles.len() - 1) % proto_tiles.len(),
+                        reverse_tile_index: (i + tiles.len() - 1) % tiles.len(),
                     }]);
                 }
                 proto_vertex_stars.extend(vec![ProtoVertexStar {
                     index: i,
-                    proto_tiles: proto_tiles.clone(),
+                    tiles: tiles.clone(),
                     proto_neighbors,
                 }]);
             }
 
-            let mut proto_tiles: HashSet<ProtoTile> = HashSet::default();
-            for vertex_proto_tiles in all_proto_tiles.into_iter() {
-                for proto_tile in vertex_proto_tiles.into_iter() {
-                    proto_tiles.insert(proto_tile);
+            let mut tiles: HashSet<Tile> = HashSet::default();
+            for vertex_tiles in all_tiles.into_iter() {
+                for tile in vertex_tiles.into_iter() {
+                    tiles.insert(tile);
                 }
             }
-            let mut proto_tiles = proto_tiles.into_iter().collect_vec();
-            proto_tiles.shrink_to_fit();
+            let mut tiles = tiles.into_iter().collect_vec();
+            tiles.shrink_to_fit();
 
             Ok(Atlas {
                 proto_vertex_stars,
-                proto_tiles,
+                tiles,
             })
         }
     }
