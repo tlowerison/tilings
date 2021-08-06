@@ -1,15 +1,24 @@
 #!/bin/sh
 component="$1"
 
+base=""
+packages=()
 script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
 
 if [[ "$component" == "client" ]]; then
-  cd "$script_dir/rust/client/src"
-  ls -d -- ../*/ | xargs -n1 | grep "[^../src/]" | xargs -n1 -I {} sh -c "cd {} && cargo test"
+  base="$script_dir/rust/client/src"
+  cd "$base"
+  packages=($(ls -d -- ../*/ | xargs -n1 | grep "[^../src/]"))
 elif [[ "$component" == "server" ]]; then
-  cd "$script_dir/rust/server/src"
-  ls -d -- ../*/ | xargs -n1 | grep "[^../src/]" | grep "[^../migrations/]" | grep "[^../schema/]" | xargs -n1 -I {} sh -c "cd {} && cargo test"
-  cd .. && cargo test
+  base="$script_dir/rust/server/src"
+  cd "$base"
+  packages=($(ls -d -- ../*/ | xargs -n1 | grep "[^../src/]" | grep "[^../migrations/]" | grep "[^../schema/]"))
+  packages+=("..")
 fi
+
+for package in "${packages[@]}"; do
+  cd "$base" && cd "$package"
+  cargo test || exit 1
+done
 
 cd "$script_dir"

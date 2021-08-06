@@ -18,7 +18,7 @@ if [[ "$component" != "client" && "$component" != "server" ]]; then
 fi
 
 script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
-sh "$script_dir/test" "$component"
+sh "$script_dir/test" "$component" || exit 1
 
 default_args=()
 if [[ "$component" == "client" ]]; then

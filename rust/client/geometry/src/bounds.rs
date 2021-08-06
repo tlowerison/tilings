@@ -1,5 +1,4 @@
 use crate::point::Point;
-use common::DEFAULT_F64_MARGIN;
 use std::hash::{Hash, Hasher};
 
 pub const E: Point  = Point(0.5, 0.);
@@ -66,15 +65,25 @@ impl Bounds {
     }
 }
 
+impl Eq for Bounds {}
+
+// Bounds is Hashed by its center point ~only~. Bounds with different radii but the same center
+// will hash to the same thing. This is expected and optimized since bounds are expected to never
+// have intersecting centers in this workspace's use cases.
 impl Hash for Bounds {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.center.hash(state);
-        ((self.radius / DEFAULT_F64_MARGIN.0).round() as i32).hash(state);
+    }
+}
+
+impl PartialEq for Bounds {
+    fn eq(&self, other: &Self) -> bool {
+        self.center.eq(&other.center)
     }
 }
 
 impl Spatial for Bounds {
-    type Hashed = Bounds;
+    type Hashed = Point;
     // https://gamedev.stackexchange.com/questions/44483/how-do-i-calculate-distance-between-a-point-and-an-axis-aligned-rectangle
     fn distance(&self, point: &Point) -> f64 {
         self.distance_vector(point).norm()
@@ -89,6 +98,6 @@ impl Spatial for Bounds {
     }
 
     fn key(&self) -> Self::Hashed {
-        self.clone()
+        self.center.clone()
     }
 }

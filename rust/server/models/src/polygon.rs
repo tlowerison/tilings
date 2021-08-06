@@ -5,6 +5,7 @@ use tile::Tile;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPoint {
+    #[serde(rename = "polygonPoint")]
     pub polygon_point: PolygonPoint,
     pub point: Point,
 }
@@ -19,6 +20,7 @@ pub struct FullPolygon {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPost {
     pub polygon: PolygonPost,
+    #[serde(rename = "labelIds")]
     pub label_ids: Option<Vec<i32>>,
     pub points: Vec<PointPost>,
 }
@@ -26,6 +28,7 @@ pub struct FullPolygonPost {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullPolygonPatch {
     pub polygon: PolygonPatch,
+    #[serde(rename = "labelIds")]
     pub label_ids: Option<Vec<i32>>, // if present, replace
     pub points: Option<Vec<PointPost>>, // if present, replace
 }

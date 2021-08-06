@@ -5,11 +5,18 @@ FROM rust:1.52.1 AS build-rust
   RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
   RUN wget https://github.com/TomWright/dasel/releases/download/v1.15.0/dasel_linux_amd64 -O dasel
   RUN chmod u+x dasel
+  RUN wget https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 -O jq
+  RUN chmod u+x jq
 
   WORKDIR /app
 
   RUN mkdir -p www
   RUN mkdir -p www/pkg
+
+  WORKDIR /app/rust/client
+
+  COPY rust/client/rust-toolchain.toml rust-toolchain.toml
+  RUN dasel select -f rust-toolchain.toml -s .toolchain.targets -w json | jq -r '.[]' | xargs -n1 rustup target add
 
   WORKDIR /app/rust
 

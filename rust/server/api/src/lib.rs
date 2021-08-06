@@ -12,11 +12,10 @@ mod tiling;
 
 pub use self::account::*;
 pub use self::atlas::*;
+pub use self::common::*;
 pub use self::health_check::*;
 pub use self::labels::*;
 pub use self::polygon::*;
 pub use self::search::*;
 pub use self::tiling_type::*;
 pub use self::tiling::*;
-
-pub const BASE_PATH: &'static str = "/api/tilings";

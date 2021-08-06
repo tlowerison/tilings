@@ -1,9 +1,7 @@
-.search {
-  padding: 0.25em 0.5em;
-  margin-bottom: 25px;
-  width: min(400px, 80%);
+.container {
+  display: inline;
 }
 
-.title {
-  margin: 15px;
+.container > * {
+  width: 100%;
 }

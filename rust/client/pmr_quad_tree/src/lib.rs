@@ -66,7 +66,8 @@ pub struct RcItem<K: Eq + Hash, S: Spatial<Hashed = K>>(Rc<Item<K, S>>);
 
 pub struct WeakItem<K: Eq + Hash, S: Spatial<Hashed = K>>(Weak<Item<K, S>>);
 
-pub struct Neighbor<K: Eq + Hash, S: Spatial<Hashed = K>> {
+pub struct Neighbor<'a, K: Eq + Hash, S: Spatial<Hashed = K>> {
+    pub bounds: &'a Bounds,
     pub distance: f64,
     pub item: WeakItem<K, S>,
 }
@@ -209,14 +210,18 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Leaf<K, S> {
         Some(&self)
     }
 
-    fn nearest_neighbor(&self, point: &Point) -> Option<Neighbor<K, S>> {
+    fn nearest_neighbor<'a>(&'a self, point: &Point) -> Option<Neighbor<'a, K, S>> {
         let mut min_distance = std::f64::MAX;
         let mut arg_min: Option<Neighbor<K, S>> = None;
         for item in self.items.iter() {
             if let Some(distance) = item.distance(point) {
                 if distance < min_distance {
                     min_distance = distance;
-                    arg_min = Some(Neighbor { distance, item: item.clone() });
+                    arg_min = Some(Neighbor {
+                        distance,
+                        bounds: &self.bounds,
+                        item: item.clone(),
+                    });
                 }
             }
         }
@@ -414,7 +419,7 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
     }
 
     // https://www.cs.umd.edu/~hjs/pubs/ssd91.pdf - Section 5
-    pub fn nearest_neighbor<'b>(&'b self, point: &Point) -> Result<Neighbor<K, S>, String> {
+    pub fn nearest_neighbor<'b>(&'b self, point: &Point) -> Result<Neighbor<'b, K, S>, String> {
         let bounding_leaf = match self.root.bounding_leaf(point) {
             Some(leaf) => leaf,
             // this may or may not work - need to test out - kind of an approximation
@@ -441,21 +446,21 @@ impl<K: Eq + Hash, S: Spatial<Hashed = K>> Tree<K, S> {
 }
 
 
-impl<K: Eq + Hash, S: Spatial<Hashed = K>> Eq for Neighbor<K, S> {}
+impl<'a, K: Eq + Hash, S: Spatial<Hashed = K>> Eq for Neighbor<'a, K, S> {}
 
-impl<K: Eq + Hash, S: Spatial<Hashed = K>> Ord for Neighbor<K, S> {
+impl<'a, K: Eq + Hash, S: Spatial<Hashed = K>> Ord for Neighbor<'a, K, S> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.distance.partial_cmp(&other.distance).unwrap()
     }
 }
 
-impl<K: Eq + Hash, S: Spatial<Hashed = K>> PartialEq for Neighbor<K, S> {
+impl<'a, K: Eq + Hash, S: Spatial<Hashed = K>> PartialEq for Neighbor<'a, K, S> {
     fn eq(&self, other: &Self) -> bool {
         self.distance.eq(&other.distance)
     }
 }
 
-impl<K: Eq + Hash, S: Spatial<Hashed = K>> PartialOrd for Neighbor<K, S> {
+impl<'a, K: Eq + Hash, S: Spatial<Hashed = K>> PartialOrd for Neighbor<'a, K, S> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.distance.partial_cmp(&other.distance)
     }

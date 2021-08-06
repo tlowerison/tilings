@@ -1,13 +1,15 @@
 [package]
 name = "queries"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
 auth = { path = "../auth" }
+chrono = "0.4.19"
 diesel = { version = "1.4.4", features = ["postgres", "r2d2"] }
+lazy_static = "1.4.0"
 models = { path = "../models" }
 rand = "0.8.4"
 result = { path = "../result" }

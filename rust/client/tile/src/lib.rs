@@ -150,6 +150,10 @@ impl Tile {
         odd_nodes
     }
 
+    pub fn edges<'a>(&'a self) -> Vec<Edge<'a>> {
+        Point::edges(&self.points)
+    }
+
     // reorient_about_origin shifts the underlying points of a Tile so that the first
     // point is the closest to the origin
     pub fn reorient(&mut self, origin: &Point) {

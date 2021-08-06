@@ -15,24 +15,28 @@ pub struct FullTiling {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullTilingPost {
     pub tiling: TilingPost,
+    #[serde(rename = "labelIds")]
     pub label_ids: Option<Vec<i32>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullSubTilingPost {
     pub title: String,
+    #[serde(rename = "labelIds")]
     pub label_ids: Option<Vec<i32>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullTilingPatch {
     pub tiling: TilingPatch,
+    #[serde(rename = "labelIds")]
     pub label_ids: Option<Vec<i32>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullSubTilingPatch {
     pub title: Option<String>,
+    #[serde(rename = "labelIds")]
     pub label_ids: Option<Vec<i32>>,
 }
 

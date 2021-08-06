@@ -1,0 +1,19 @@
+[package]
+name = "patch"
+version = "0.2.8"
+authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+atlas = { path = "../atlas" }
+common = { path = "../common" }
+float-cmp = "0.8.0"
+geometry = { path = "../geometry" }
+indexmap = "1.6.2"
+itertools = "0.10.0"
+models = { path = "../../server/models" }
+pmr_quad_tree = { path = "../pmr_quad_tree" }
+rmp-serde = "0.15.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.64"
+tile = { path = "../tile" }

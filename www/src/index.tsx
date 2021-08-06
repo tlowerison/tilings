@@ -1,13 +1,22 @@
 import "regenerator-runtime/runtime.js";
+import "./styles.module.scss";
 import React, { ReactElement } from "react";
 import ReactDOM from "react-dom";
-import styles from "./styles.module.scss";
-import { BrowserRouter as Router } from "react-router-dom";
+import { BrowserRouter as Router, Switch } from "react-router-dom";
 import { ThemeProvider, createMuiTheme } from "@material-ui/core/styles";
+import { init } from "client";
+import { routerBasename } from "utils";
+
+init();
 
 const muiTheme = createMuiTheme({
   typography: {
     fontFamily: "monospace",
+  },
+  props: {
+    MuiButtonBase: {
+      disableRipple: true,
+    },
   },
 });
 
@@ -16,13 +25,13 @@ const muiTheme = createMuiTheme({
   const root = document.getElementById("root");
   root && ReactDOM.render(
     (
-      <div className={styles.app}>
-        <Router basename="/tilings">
-          <ThemeProvider theme={muiTheme}>
+      <Router basename={routerBasename}>
+        <ThemeProvider theme={muiTheme}>
+          <Switch>
             <App />
-          </ThemeProvider>
-        </Router>
-      </div>
+          </Switch>
+        </ThemeProvider>
+      </Router>
     ) as ReactElement,
     root,
   );

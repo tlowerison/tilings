@@ -1,0 +1,20 @@
+.container {
+  position: relative;
+  width: 100%;
+  transform: scale(1);
+  -moz-transform-origin: 0px 0px;
+}
+
+.subContainer {
+  position: absolute;
+  width: 100%;
+  * {
+    position: absolute;
+    z-index: -1;
+  }
+}
+
+.scrollable {
+  overflow-x: scroll;
+  overflow-y: scroll;
+}

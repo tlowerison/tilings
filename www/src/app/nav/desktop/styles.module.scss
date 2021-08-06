@@ -1,0 +1,19 @@
+.item {
+  padding-left: 20px;
+}
+
+.items {
+  align-items: center;
+  display: flex;
+  float: right;
+  justify-content: right;
+  padding-right: 40px;
+}
+
+.nav {
+  position: relative;
+  margin: 10px 10px 10px 20px;
+  top: 0px;
+  height: 26px;
+  z-index: 2;
+}

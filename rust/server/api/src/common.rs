@@ -2,6 +2,8 @@ use percent_encoding;
 use result::{Error, Result};
 use rocket::http::Status;
 
+pub const BASE_PATH: &'static str = "/api/tilings";
+
 const INVALID_QUERY_STRING_ERR_MSG: &'static str = "Invalid query string.";
 
 pub fn clamp_optional(max: u32, value: Option<u32>) -> u32 {

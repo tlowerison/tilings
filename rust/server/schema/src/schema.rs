@@ -6,6 +6,8 @@ table! {
         display_name -> Varchar,
         verified -> Bool,
         verification_code -> Nullable<Varchar>,
+        password_reset_code -> Nullable<Varchar>,
+        password_reset_code_timestamp -> Nullable<Timestamp>,
     }
 }
 

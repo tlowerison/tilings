@@ -1,8 +1,8 @@
-use crate::atlas::{Atlas, ProtoNeighbor, ProtoVertexStar};
+use atlas::{Atlas, ProtoNeighbor, ProtoVertexStar};
 use common::*;
 use geometry::{Affine, Bounds, Euclid, Point, Spatial, Transform, Transformable};
 use itertools::izip;
-use pmr_quad_tree::{Config as TreeConfig, Tree};
+use pmr_quad_tree::{Config as TreeConfig, RcItem, Tree, WeakItem};
 use std::{
     collections::{HashMap, VecDeque},
     iter,
@@ -220,6 +220,13 @@ pub struct PatchTile<State> {
     pub state: Option<State>, // if state is None, tile isn't drawn
 }
 
+impl<State> std::ops::Deref for PatchTile<State> {
+    type Target = Tile;
+    fn deref(&self) -> &Tile {
+        &self.tile
+    }
+}
+
 impl<State> Spatial for PatchTile<State> {
     type Hashed = Point;
     fn distance(&self, point: &Point) -> f64 { self.tile.distance(point) }
@@ -230,7 +237,7 @@ impl<State> Spatial for PatchTile<State> {
 #[derive(Debug)]
 pub struct Patch<State> {
     pub atlas: Atlas,
-    pub tile_diffs: HashMap<Tile, TileDiff>,
+    pub tile_diffs: HashMap<Point, (WeakItem<Point, PatchTile<State>>, TileDiff)>,
     pub vertex_stars: Tree<Point, VertexStar>,
     pub patch_tiles: Tree<Point, PatchTile<State>>,
 }
@@ -251,9 +258,13 @@ impl<State> Patch<State> {
         })
     }
 
-    pub fn drain_tile_diffs(&mut self) -> HashMap<Tile, TileDiff> {
+    pub fn drain_tile_diffs(&mut self) -> Vec<(RcItem<Point, PatchTile<State>>, TileDiff)> {
         self.tile_diffs
             .drain()
+            .filter_map(|(_, (patch_tile_weak_item, tile_diff))| patch_tile_weak_item
+                    .upgrade()
+                    .map(|patch_tile_rc_item| (patch_tile_rc_item, tile_diff))
+            )
             .collect()
     }
 
@@ -283,8 +294,7 @@ impl<State> Patch<State> {
             let edge = (nearest_vertex_star.value().point.clone(), next_vertex_star.point.clone());
 
             if tile.contains(&point) {
-                self.insert_adjacent_tile_by_edge(edge, state)?;
-                return Ok(())
+                return self.insert_adjacent_tile_by_edge(edge, state);
             } else {
                 self.insert_adjacent_tile_by_edge(edge, None)?;
                 self.vertex_stars.insert(next_vertex_star);
@@ -335,9 +345,23 @@ impl<State> Patch<State> {
             .ok_or_else(|| String::from(format!("no VertexStar found at start {}", start)))?;
         let start_vertex_star = start_vertex_star_rc.value();
         let tile = start_vertex_star.get_tile(&self.atlas, &stop).ok_or_else(|| String::from(format!("stop {} is not in the link of start {}", stop, start)))?;
-        let tile_size = tile.size();
 
-        let previous_item = self.patch_tiles.insert(PatchTile { tile: tile.clone(), state: None });
+        // store info we need after move
+        let centroid = tile.centroid.clone();
+        let tile_size = tile.size();
+        let included = if let Some(_) = &state { true } else { false };
+
+        if let Some(patch_tile_item) = self.patch_tiles.get(&centroid) {
+            if included {
+                if let None = &patch_tile_item.value().state {
+                    self.patch_tiles.insert(PatchTile { tile, state });
+                    self.insert_in_tile_diffs(centroid, TileDiff::Added)?;
+                }
+            }
+            return Ok(())
+        }
+
+        self.patch_tiles.insert(PatchTile { tile, state });
 
         let mut link_points: Vec<(usize, Point)> = vec![(0, stop.clone()), (0, start.clone())];
         let mut new_link_points: Vec<(usize, Point)> = vec![];
@@ -366,35 +390,17 @@ impl<State> Patch<State> {
             }
         }
 
-        let included = if let Some(_) = state { true } else { false };
-        match previous_item {
-            None => {
-                if included {
-                    let mut patch_tile_item = self.patch_tiles.get(&tile.centroid).ok_or_else(|| "failed to insert tile properly")?;
-                    {
-                        let mut patch_tile = patch_tile_item
-                            .value_mut()
-                            .or_else(|_| Err(String::from("cannot retrieve mutable reference to patch tile to update state")))?;
-                        patch_tile.state = state;
-                    }
-                    self.update_neighbors_after_new_tile_insert(&tile.centroid).or_else(|_| Err(String::from("couldn't update neighbors")))?;
-                    self.tile_diffs.insert(tile.clone(), TileDiff::Added);
-                }
-            },
-            Some(mut patch_tile_item) => {
-                let mut patch_tile = patch_tile_item
-                    .value_mut()
-                    .or_else(|_| Err(String::from("cannot retrieve mutable reference to patch tile to update state")))?;
-                if let None = patch_tile.state {
-                    if included {
-                        self.tile_diffs.insert(tile.clone(), TileDiff::Added);
-                        patch_tile.state = state;
-                    }
-                }
-                return Ok(())
-            },
-        };
+        if included {
+            self.insert_in_tile_diffs(centroid, TileDiff::Added)?;
+        }
 
+        Ok(())
+    }
+
+    fn insert_in_tile_diffs(&mut self, centroid: Point, tile_diff: TileDiff) -> Result<(), String> {
+        let patch_tile_item = self.patch_tiles.get(&centroid).ok_or_else(|| "failed to get patch tile properly")?;
+        self.update_neighbors_after_new_tile_insert(&centroid).or_else(|_| Err(String::from("couldn't update neighbors")))?;
+        self.tile_diffs.insert(centroid, (patch_tile_item.downgrade(), tile_diff));
         Ok(())
     }
 
@@ -442,7 +448,7 @@ impl<State> Patch<State> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::*;
+    use atlas::VertexStarTransform;
     use tile::Tile;
     use geometry::Point;
     use std::f64::consts::{PI, TAU};

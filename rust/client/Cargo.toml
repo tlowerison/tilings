@@ -1,11 +1,12 @@
 [package]
 name = "client"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Trey Lowerison <19714082+tlowerison@users.noreply.github.com>"]
 edition = "2018"
 
 [dependencies]
 atlas = { path = "./atlas" }
+canvas = { path = "./canvas" }
 colourado = "0.2.0"
 common = { path = "./common" }
 console_error_panic_hook = "0.1.6"
@@ -15,6 +16,7 @@ js-sys = "0.3.51"
 lazy_static = "1.4.0"
 models = { path = "../server/models" }
 paste = "1.0.5"
+patch = { path = "./patch" }
 percent-encoding = "2.1.0"
 plotters = "0.3.0"
 plotters-canvas = "0.3.0"
@@ -23,6 +25,7 @@ rand = { version = "0.6.5", features = ["wasm-bindgen"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
 tile = { path = "./tile" }
+tiling = { path = "./tiling" }
 wasm-bindgen = { version = "0.2.74", features = ["serde-serialize"] }
 wasm-bindgen-futures = "0.4.24"
 
@@ -31,6 +34,7 @@ version = "0.3.51"
 features = [
   "Headers",
   "Request",
+  "RequestCredentials",
   "RequestInit",
   "RequestMode",
   "Response",

@@ -8,17 +8,48 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     Request,
+    RequestCredentials,
     RequestInit,
     RequestMode,
     Response,
 };
+
+#[derive(Deserialize, Serialize)]
+pub struct Account {
+    pub id: i32,
+    pub email: String,
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    pub verified: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct ResponseDetails {
+    ok: bool,
+    status: u16,
+    #[serde(rename = "statusText")]
+    status_text: String,
+    url: String,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 enum Error {
     Default,
     Serde,
     Query,
+    Network(ResponseDetails),
     Url,
+}
+
+impl From<&Response> for Error {
+    fn from(res: &Response) -> Error {
+        Error::Network(ResponseDetails {
+            ok: res.ok(),
+            status: res.status(),
+            status_text: res.status_text(),
+            url: res.url(),
+        })
+    }
 }
 
 pub fn percent_encode(query: String) -> String {
@@ -88,17 +119,17 @@ macro_rules! get_delete {
     )*) => {
         paste! {
             $(
-                #[wasm_bindgen]
+                #[wasm_bindgen(catch)]
                 #[allow(non_snake_case)]
                 pub async fn $exp_fn_name(
                     $($param_name: JsValue,)*
                     $($arg_name: JsValue,)*
                 ) -> Result<JsValue, JsValue> {
                     let value = $fn_name(
-                        $($param_name.into_serde().or(Err(JsValue::from_str(stringify!($param_name))))?,)*
-                        $($arg_name.into_serde().or(Err(JsValue::from_str(stringify!($arg_name))))?,)*
+                        $($param_name.into_serde().or_else(|_| Err(JsValue::from_str(stringify!($param_name))))?,)*
+                        $($arg_name.into_serde().or_else(|_| Err(JsValue::from_str(stringify!($arg_name))))?,)*
                     ).await?;
-                    Ok(JsValue::from_serde(&value).or(Err(Error::Serde.js_value()))?)
+                    Ok(JsValue::from_serde(&value).or_else(|_| Err(Error::Serde.js_value()))?)
                 }
 
                 pub async fn $fn_name(
@@ -107,11 +138,7 @@ macro_rules! get_delete {
                 ) -> Result<$return_type, JsValue> {
                     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-                    let mut opts = RequestInit::new();
-
-                    opts.method($method);
-
-                    opts.mode(RequestMode::Cors);
+                    let window = web_sys::window().unwrap();
 
                     let url = clean_query(url(&format!(
                         $route,
@@ -119,25 +146,34 @@ macro_rules! get_delete {
                         $(match $arg_name { None => String::from(""), Some(val) => percent_encode(format!("{}", val)) },)*
                     )))?;
 
-                    let request = Request::new_with_str_and_init(&url, &opts)
-                        .or(Err(Error::Url.js_value()))?;
+                    let request = Request::new_with_str(&url)
+                        .or_else(|_| Err(Error::Url.js_value()))?;
 
                     request
                         .headers()
                         .set("Accept", "application/json")
-                        .or(Err(Error::Url.js_value()))?;
+                        .or_else(|_| Err(Error::Url.js_value()))?;
 
-                    let window = web_sys::window().unwrap();
+                    let mut opts = RequestInit::new();
 
-                    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+                    opts.method($method);
+                    opts.mode(RequestMode::Cors);
+                    opts.credentials(RequestCredentials::Include);
 
-                    let resp: Response = resp_value.dyn_into().unwrap();
+                    let response: Response = JsFuture::from(window.fetch_with_request_and_init(&request, &opts))
+                        .await?
+                        .dyn_into()
+                        .unwrap();
+
+                    if !response.ok() {
+                        return Err(Error::from(&response).js_value());
+                    }
 
                     // Convert this other `Promise` into a rust `Future`.
-                    let json = JsFuture::from(resp.json()?).await?;
+                    let json = JsFuture::from(response.json()?).await?;
 
                     // Use serde to parse the JSON into a struct.
-                    let value: $return_type = json.into_serde().unwrap();
+                    let value: $return_type = json.into_serde().or_else(|_| Err(Error::from(&response).js_value()))?;
 
                     Ok(value)
                 }
@@ -159,7 +195,7 @@ macro_rules! post_patch {
     )*) => {
         paste! {
             $(
-                #[wasm_bindgen]
+                #[wasm_bindgen(catch)]
                 #[allow(non_snake_case)]
                 pub async fn $exp_fn_name(
                     $($data_name: JsValue,)?
@@ -167,11 +203,11 @@ macro_rules! post_patch {
                     $($arg_name: JsValue,)*
                 ) -> Result<JsValue, JsValue> {
                     let value = $fn_name(
-                        $($data_name.into_serde().or(Err(JsValue::from_str(stringify!($data_name))))?,)?
-                        $($param_name.into_serde().or(Err(JsValue::from_str(stringify!($param_name))))?,)*
-                        $($arg_name.into_serde().or(Err(JsValue::from_str(stringify!($arg_name))))?,)*
+                        $($data_name.into_serde().or_else(|_| Err(JsValue::from_str(stringify!($data_name))))?,)?
+                        $($param_name.into_serde().or_else(|_| Err(JsValue::from_str(stringify!($param_name))))?,)*
+                        $($arg_name.into_serde().or_else(|_| Err(JsValue::from_str(stringify!($arg_name))))?,)*
                     ).await?;
-                    Ok(JsValue::from_serde(&value).or(Err(Error::Serde.js_value()))?)
+                    Ok(JsValue::from_serde(&value).or_else(|_| Err(Error::Serde.js_value()))?)
                 }
 
                 pub async fn $fn_name(
@@ -181,18 +217,7 @@ macro_rules! post_patch {
                 ) -> Result<$return_type, JsValue> {
                     panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-                    let mut opts = RequestInit::new();
-
-                    opts.method($method);
-
-                    opts.mode(RequestMode::Cors);
-
-                    $(
-                        opts.body(Some(&JsValue::from_str(
-                            &serde_json::to_string(&$data_name)
-                                .or(Err(Error::Serde.js_value()))?
-                        )));
-                    )?
+                    let window = web_sys::window().unwrap();
 
                     let url = clean_query(url(&format!(
                         $route,
@@ -200,25 +225,41 @@ macro_rules! post_patch {
                         $(match $arg_name { None => String::from(""), Some(val) => percent_encode(format!("{}", val)) },)*
                     )))?;
 
-                    let request = Request::new_with_str_and_init(&url, &opts)
-                        .or(Err(Error::Url.js_value()))?;
+                    let request = Request::new_with_str(&url)
+                        .or_else(|_| Err(Error::Url.js_value()))?;
 
                     request
                         .headers()
                         .set("Accept", "application/json")
-                        .or(Err(Error::Url.js_value()))?;
+                        .or_else(|_| Err(Error::Url.js_value()))?;
 
-                    let window = web_sys::window().unwrap();
+                    let mut opts = RequestInit::new();
 
-                    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+                    opts.method($method);
+                    opts.mode(RequestMode::Cors);
+                    opts.credentials(RequestCredentials::Include);
 
-                    let resp: Response = resp_value.dyn_into().unwrap();
+                    $(
+                        opts.body(Some(&JsValue::from_str(
+                            &serde_json::to_string(&$data_name)
+                                .or_else(|_| Err(Error::Serde.js_value()))?
+                        )));
+                    )?
+
+                    let response: Response = JsFuture::from(window.fetch_with_request_and_init(&request, &opts))
+                        .await?
+                        .dyn_into()
+                        .unwrap();
+
+                    if !response.ok() {
+                        return Err(Error::from(&response).js_value());
+                    }
 
                     // Convert this other `Promise` into a rust `Future`.
-                    let json = JsFuture::from(resp.json()?).await?;
+                    let json = JsFuture::from(response.json()?).await?;
 
                     // Use serde to parse the JSON into a struct.
-                    let value: $return_type = json.into_serde().unwrap();
+                    let value: $return_type = json.into_serde().or_else(|_| Err(Error::from(&response).js_value()))?;
 
                     Ok(value)
                 }
@@ -228,6 +269,16 @@ macro_rules! post_patch {
 }
 
 get_delete! {
+    "GET", "/api/tilings/v1/account", get_account, getAccount,
+    Account,
+    Params {},
+    Query {},
+
+    "GET", "/api/tilings/v1/account-tilings", get_account_tilings, getAccountTilings,
+    Vec<models::FullTiling>,
+    Params {},
+    Query {},
+
     "GET", "/api/tilings/v1/atlas/{}", get_atlas, getAtlas,
     models::FullAtlas,
     Params {
@@ -265,6 +316,13 @@ get_delete! {
     bool,
     Params {
         email: String,
+    },
+    Query {},
+
+    "GET", "/api/tilings/v1/check-password-reset-code/{}", check_password_reset_code, checkPasswordResetCode,
+    String,
+    Params {
+        password_reset_code: String,
     },
     Query {},
 
@@ -428,8 +486,22 @@ post_patch! {
     Query {},
     Data,
 
-    "POST", "/api/tilings/v1/sign-in", sign_in, signIn,
+    "POST", "/api/tilings/v1/send-password-reset-link/{}", send_password_reset_link, sendResetPasswordLink,
     (),
+    Params {
+        email: String,
+    },
+    Query {},
+    Data,
+
+    "POST", "/api/tilings/v1/reset-password", reset_password, resetPassword,
+    (),
+    Params {},
+    Query {},
+    Data reset_password_post: models::ResetPasswordPost,
+
+    "POST", "/api/tilings/v1/sign-in", sign_in, signIn,
+    Account,
     Params {},
     Query {},
     Data sign_in_post: models::SignInPost,
@@ -441,10 +513,10 @@ post_patch! {
     Data,
 
     "POST", "/api/tilings/v1/sign-up", sign_up, signUp,
-    (),
+    Account,
     Params {},
     Query {},
-    Data sign_in_post: models::AccountPost,
+    Data sign_in_post: models::SignUpPost,
 
     "PATCH", "/api/tilings/v1/tiling", update_tiling, updateTiling,
     models::FullTiling,

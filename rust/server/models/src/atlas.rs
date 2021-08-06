@@ -13,18 +13,26 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasEdge {
     pub id: i32,
+    #[serde(rename = "polygonIndex")]
     pub polygon_index: usize,
+    #[serde(rename = "pointIndex")]
     pub point_index: usize,
+    #[serde(rename = "neighborIndex")]
     pub neighbor_index: usize,
+    #[serde(rename = "neighborEdgeIndex")]
     pub neighbor_edge_index: usize,
     pub parity: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasEdgePost {
+    #[serde(rename = "polygonIndex")]
     pub polygon_index: usize,
+    #[serde(rename = "pointIndex")]
     pub point_index: usize,
+    #[serde(rename = "neighborIndex")]
     pub neighbor_index: usize,
+    #[serde(rename = "neighborEdgeIndex")]
     pub neighbor_edge_index: usize,
     pub parity: bool,
 }
@@ -51,9 +59,10 @@ pub struct FullAtlas {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FullAtlasPost {
     pub tiling: FullSubTilingPost,
+    #[serde(rename = "polygonIds")]
     pub polygon_ids: Vec<i32>,
     pub vertices: Vec<FullAtlasVertexPost>,
-    #[serde(skip_deserializing, default = "none_i32")]
+    #[serde(rename = "ownerId", skip_deserializing, default = "none_i32")]
     pub owner_id: Option<i32>,
 }
 
@@ -61,6 +70,7 @@ pub struct FullAtlasPost {
 pub struct FullAtlasPatch {
     pub id: i32,
     pub tiling: Option<FullSubTilingPatch>,
+    #[serde(rename = "polygonIds")]
     pub polygon_ids: Option<Vec<i32>>,
     pub vertices: Option<Vec<FullAtlasVertexPost>>,
 }

@@ -73,7 +73,7 @@ dependencies = [
 
 [[package]]
 name = "api"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "async-std",
  "auth",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "common",
  "float-cmp",
@@ -304,7 +304,7 @@ dependencies = [
 
 [[package]]
 name = "auth"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "async-std",
  "base64",
@@ -435,6 +435,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "631ae5198c9be5e753e5cc215e1bd73c2b466a3565173db433f52bb9d3e66dba"
 
 [[package]]
+name = "canvas"
+version = "0.1.0"
+dependencies = [
+ "geometry",
+ "plotters",
+ "plotters-backend",
+ "plotters-canvas",
+ "pmr_quad_tree",
+ "tile",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -476,9 +490,10 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "atlas",
+ "canvas",
  "colourado",
  "common",
  "console_error_panic_hook",
@@ -488,6 +503,7 @@ dependencies = [
  "lazy_static",
  "models",
  "paste",
+ "patch",
  "percent-encoding",
  "plotters",
  "plotters-canvas",
@@ -496,6 +512,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tile",
+ "tiling",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -546,7 +563,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "float-cmp",
  "itertools",
@@ -560,6 +577,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30ed07550be01594c6026cff2a1d7fe9c8f683caa798e12b68694ac9e88286a3"
 dependencies = [
  "cache-padded",
+]
+
+[[package]]
+name = "console"
+version = "0.1.0"
+dependencies = [
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -725,7 +749,7 @@ dependencies = [
 
 [[package]]
 name = "db_conn"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "diesel",
  "rocket_sync_db_pools",
@@ -794,6 +818,7 @@ checksum = "bba51ca66f57261fd17cadf8b73e4775cc307d0521d855de3f5de91a8f074e0e"
 dependencies = [
  "bitflags",
  "byteorder",
+ "chrono",
  "diesel_derives",
  "pq-sys",
  "r2d2",
@@ -1166,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "geometry"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "common",
  "float-cmp",
@@ -1581,9 +1606,10 @@ dependencies = [
 
 [[package]]
 name = "models"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "async-std",
+ "chrono",
  "common",
  "diesel",
  "float-cmp",
@@ -1796,6 +1822,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
 
 [[package]]
+name = "patch"
+version = "0.2.8"
+dependencies = [
+ "atlas",
+ "common",
+ "float-cmp",
+ "geometry",
+ "indexmap",
+ "itertools",
+ "models",
+ "pmr_quad_tree",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "tile",
+]
+
+[[package]]
 name = "pathfinder_geometry"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1930,7 +1974,7 @@ dependencies = [
 
 [[package]]
 name = "pmr_quad_tree"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "common",
  "float-cmp",
@@ -2025,11 +2069,13 @@ dependencies = [
 
 [[package]]
 name = "queries"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "async-std",
  "auth",
+ "chrono",
  "diesel",
+ "lazy_static",
  "models",
  "rand 0.8.4",
  "result",
@@ -2230,7 +2276,7 @@ dependencies = [
 
 [[package]]
 name = "rate_limiter"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "api",
  "async-std",
@@ -2332,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "result"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "diesel",
  "paste",
@@ -2540,7 +2586,7 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "diesel",
 ]
@@ -2646,7 +2692,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "api",
  "db_conn",
@@ -2849,12 +2895,27 @@ dependencies = [
 
 [[package]]
 name = "tile"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "common",
  "float-cmp",
  "geometry",
  "itertools",
+]
+
+[[package]]
+name = "tiling"
+version = "0.1.0"
+dependencies = [
+ "atlas",
+ "canvas",
+ "geometry",
+ "patch",
+ "plotters",
+ "pmr_quad_tree",
+ "tile",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

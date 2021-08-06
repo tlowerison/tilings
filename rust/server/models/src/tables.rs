@@ -1,3 +1,4 @@
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -335,9 +336,12 @@ use crate::crud;
 
 pub fn none_bool() -> Option<bool> { None }
 pub fn none_i32() -> Option<i32> { None }
+pub fn none_opt_datetime() -> Option<Option<NaiveDateTime>> { None }
 pub fn none_opt_i32() -> Option<Option<i32>> { None }
 pub fn none_opt_string() -> Option<Option<String>> { None }
 
+pub fn default_account_password_reset_code() -> Option<String> { None }
+pub fn default_account_password_reset_code_timestamp() -> Option<NaiveDateTime> { None }
 pub fn default_account_verification_code() -> Option<String> { None }
 pub fn default_atlas_tiling_type_id() -> i32 { 2 }
 pub fn default_false() -> bool { false }
@@ -346,46 +350,62 @@ crud! {
     "account", account,,
     struct Account {
         email: String,
+        #[serde(skip_serializing)]
         password: String,
+        #[serde(rename = "displayName")]
         display_name: String,
         #[serde(skip_deserializing)] { "default_false", "none_bool" }
         verified: bool,
-        #[serde(skip_deserializing)] { "default_account_verification_code", "none_opt_string" }
+        #[serde(skip_deserializing, skip_serializing)] { "default_account_verification_code", "none_opt_string" }
         verification_code: Option<String>,
+        #[serde(skip_deserializing, skip_serializing)] { "default_account_password_reset_code", "none_opt_string" }
+        password_reset_code: Option<String>,
+        #[serde(skip_deserializing, skip_serializing)] { "default_account_password_reset_code_timestamp", "none_opt_datetime" }
+        password_reset_code_timestamp: Option<NaiveDateTime>,
     },
 
     "accountrole", accountrole, Account Role,
     struct AccountRole {
+        #[serde(rename = "accountId")]
         account_id: i32,
+        #[serde(rename = "roleId")]
         role_id: i32,
     },
 
     "apikey", apikey, Account,
     struct APIKey {
+        #[serde(rename = "accountId")]
         account_id: i32,
         content: String,
     },
 
     "atlas", atlas, Tiling TilingType,
     struct Atlas {
+        #[serde(rename = "tilingId")]
         tiling_id: i32,
-        #[serde(skip_deserializing)] { "default_atlas_tiling_type_id", "none_i32" }
+        #[serde(rename = "tilingTypeId", skip_deserializing)] { "default_atlas_tiling_type_id", "none_i32" }
         tiling_type_id: i32,
     },
 
     "atlasedge", atlasedge, Atlas PolygonPoint,
     struct AtlasEdge {
+        #[serde(rename = "atlasId")]
         atlas_id: i32,
+        #[serde(rename = "polygonPointId")]
         polygon_point_id: i32,
+        #[serde(rename = "sourceId")]
         source_id: i32,
+        #[serde(rename = "sinkId")]
         sink_id: i32,
         parity: bool,
         sequence: i32,
+        #[serde(rename = "neighborEdgeId")]
         neighbor_edge_id: Option<i32>,
     },
 
     "atlasvertex", atlasvertex, Atlas,
     struct AtlasVertex {
+        #[serde(rename = "atlasId")]
         atlas_id: i32,
     },
 
@@ -403,19 +423,23 @@ crud! {
     "polygon", polygon,,
     struct Polygon {
         title: String,
-        #[serde(skip_deserializing, skip_serializing)] { "none_i32", "none_opt_i32" }
+        #[serde(rename = "ownerId", skip_deserializing, skip_serializing)] { "none_i32", "none_opt_i32" }
         owner_id: Option<i32>,
     },
 
     "polygonlabel", polygonlabel, Polygon Label,
     struct PolygonLabel {
+        #[serde(rename = "polygonId")]
         polygon_id: i32,
+        #[serde(rename = "labelId")]
         label_id: i32,
     },
 
     "polygonpoint", polygonpoint, Polygon Point,
     struct PolygonPoint {
+        #[serde(rename = "polygonId")]
         polygon_id: i32,
+        #[serde(rename = "pointId")]
         point_id: i32,
         sequence: i32,
     },
@@ -428,14 +452,17 @@ crud! {
     "tiling", tiling, TilingType,
     struct Tiling {
         title: String,
+        #[serde(rename = "tilingTypeId")]
         tiling_type_id: i32,
-        #[serde(skip_deserializing, skip_serializing)] { "none_i32", "none_opt_i32" }
+        #[serde(rename = "ownerId", skip_deserializing, skip_serializing)] { "none_i32", "none_opt_i32" }
         owner_id: Option<i32>,
     },
 
     "tilinglabel", tilinglabel, Tiling Label,
     struct TilingLabel {
+        #[serde(rename = "tilingId")]
         tiling_id: i32,
+        #[serde(rename = "labelId")]
         label_id: i32,
     },
 
