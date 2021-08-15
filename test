@@ -1,6 +1,16 @@
 #!/bin/sh
 component="$1"
 
+if [[ "$component" == "" ]]; then
+  echo "missing component"
+  exit 1
+fi
+
+if [[ "$component" != "client" && "$component" != "server" ]]; then
+  echo "unknown component $component"
+  exit 1
+fi
+
 base=""
 packages=()
 script_dir="$(cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd)"
