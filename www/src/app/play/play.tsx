@@ -109,7 +109,11 @@ export const Play = () => {
   //   [containerRef, searchRef],
   // );
 
-  useEffect(() => () => removeTiling(globalId), []);
+  useEffect(() => {
+    const html = Array.from(document.getElementsByTagName("html"))[0];
+    html.scrollTop = 0;
+    return () => removeTiling(globalId);
+  }, []);
 
   return (
     <div className={styles.container}>
