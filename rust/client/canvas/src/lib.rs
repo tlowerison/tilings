@@ -3,33 +3,22 @@ use plotters::{
     prelude::*,
     style::RGBColor,
 };
-use plotters_canvas::CanvasBackend;
 use tile::Tile;
-use web_sys::HtmlCanvasElement;
 
 pub const CENTER: (f64, f64) = (0., 0.);
 pub const SCALE: f64 = 30.;
 pub const TO_CANVAS_AFFINE: Affine = Affine([[SCALE, 0.], [0., -SCALE]], [CENTER.0, CENTER.1]);
 pub const FROM_CANVAS_AFFINE: Affine = Affine([[1./SCALE, 0.], [0., -1./SCALE]], [-CENTER.0 / SCALE, CENTER.1/SCALE]);
 
-pub struct Canvas {
-    pub backend: CanvasBackend,
+pub struct Canvas<B: DrawingBackend> {
+    pub backend: B,
     pub bounds: Bounds,
 }
 
-impl Canvas {
-    // Asserts canvas width and height are the same.
-    pub fn new(canvas: HtmlCanvasElement, center: Point) -> Canvas {
-        let radius = canvas.width();
-        assert_eq!(radius, canvas.height());
-
-        Canvas {
-            backend: CanvasBackend::with_canvas_object(canvas).unwrap(),
-            bounds: Bounds {
-                center,
-                radius: radius as f64,
-            },
-        }
+impl<B: DrawingBackend> Canvas<B> {
+    pub fn draw_point(&mut self, point: &Point, radius: u32, color: &RGBColor, fill: bool) -> Result<(), String> {
+        self.backend.draw_circle(to_canvas_point(point), radius, color, fill).or_else(|_| Err(String::from("could not draw point in canvas")))?;
+        Ok(())
     }
 
     pub fn fill_tile(&mut self, tile: &Tile, color: &RGBColor) -> Result<(), String> {
@@ -47,7 +36,7 @@ impl Canvas {
     }
 }
 
-impl Spatial for Canvas {
+impl<B: DrawingBackend> Spatial for Canvas<B> {
     type Hashed = Point;
     fn distance(&self, point: &Point) -> f64 { self.bounds.distance(point) }
     fn intersects(&self, bounds: &Bounds) -> bool { self.bounds.intersects(bounds) }

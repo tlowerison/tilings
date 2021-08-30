@@ -17,7 +17,6 @@ pub const ORIGIN: Point = Point(0., 0.);
 
 pub const DISPLAY_PRECISION: u32 = 2;
 
-#[derive(Debug)]
 pub struct Point(pub f64, pub f64);
 
 impl Point {
@@ -155,11 +154,22 @@ impl<'a> Transformable<'a> for Point {
     }
 }
 
+impl std::fmt::Debug for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "({},{})",
+            fmt_float::<f64>(NumCast::from(self.0).unwrap(), DISPLAY_PRECISION),
+            fmt_float::<f64>(NumCast::from(self.1).unwrap(), DISPLAY_PRECISION)
+        )
+    }
+}
+
 impl std::fmt::Display for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[{},{}]",
+            "({},{})",
             fmt_float::<f64>(NumCast::from(self.0).unwrap(), DISPLAY_PRECISION),
             fmt_float::<f64>(NumCast::from(self.1).unwrap(), DISPLAY_PRECISION)
         )
@@ -310,8 +320,8 @@ mod tests {
 
     #[test]
     fn test_point_fmt() {
-        assert_eq!("[0.00,0.00]", format!("{}", Point(0., 0.)));
-        assert_eq!("[1.45,-1.45]", format!("{}", Point(1.449, -1.449)));
-        assert_eq!("[2.00,-2.00]", format!("{}", Point(1.999, -1.999)));
+        assert_eq!("(0.00,0.00)", format!("{}", Point(0., 0.)));
+        assert_eq!("(1.45,-1.45)", format!("{}", Point(1.449, -1.449)));
+        assert_eq!("(2.00,-2.00)", format!("{}", Point(1.999, -1.999)));
     }
 }

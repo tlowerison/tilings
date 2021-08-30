@@ -1,17 +1,18 @@
 use atlas::Atlas;
 use canvas::{Canvas, SCALE, TO_CANVAS_AFFINE};
+use console::log;
 use geometry::*;
 use patch::{Patch, PatchTile, TileDiff};
 use plotters::style::RGBColor;
+use plotters_canvas::CanvasBackend;
 use pmr_quad_tree::Config as TreeConfig;
 use std::collections::HashMap;
-use tile::Tile;
 use web_sys::HtmlCanvasElement;
 use wasm_bindgen::{JsCast, prelude::*};
 
 pub struct Tiling<State> {
     pub id: i32,
-    pub canvases: HashMap<Point, Canvas>,
+    pub canvases: HashMap<Point, Canvas<CanvasBackend>>,
     pub canvas_radius: f64,
     pub patch: Patch<State>,
     neighbor_centroid_diffs: Vec<Point>,
@@ -53,7 +54,9 @@ impl<State> Tiling<State> {
 
         let neighbor_centroids = self.neighbor_centroids(&centroid);
 
-        self.patch.insert_tile_by_point(point, state)?;
+        if let Err(e) = self.patch.insert_tile_by_point(point, state) {
+            log!(e);
+        }
         let tile_diffs = self.patch.drain_tile_diffs();
 
         if tile_diffs.len() > 0 {
@@ -62,18 +65,15 @@ impl<State> Tiling<State> {
                 .map(|neighbor_centroid| Bounds { center: neighbor_centroid, radius: self.canvas_radius })
                 .collect::<Vec<Bounds>>();
 
-            for (patch_tile_rc_item, tile_diff) in tile_diffs.into_iter() {
-                let patch_tile = &*patch_tile_rc_item.value();
-                let color = get_color(patch_tile);
-
+            for (_, tile_diff) in tile_diffs.into_iter() {
                 match tile_diff {
-                    TileDiff::Added => {
-                        for bounds in all_bounds.iter() {
-                            for edge in patch_tile.edges().into_iter() {
-                                if edge.intersects(bounds) {
-                                    self.fill_tile(&bounds.center, &patch_tile.tile, &color)?;
-                                }
-                            }
+                    TileDiff::Added(patch_tile_weak_item) => {
+                        if let Some(patch_tile_rc_item) = patch_tile_weak_item.upgrade() {
+                            let patch_tile = patch_tile_rc_item.value();
+                            let color = get_color(&patch_tile).clone();
+                            let edges = patch_tile.tile.edges();
+                            let tile = patch_tile.tile.clone();
+                            self.canvas_op(&all_bounds, edges.iter().collect(), Box::new(|canvas| canvas.fill_tile(&tile, &color)))?;
                         }
                     },
                     _ => {},
@@ -88,10 +88,21 @@ impl<State> Tiling<State> {
         (2. * (distance / (2. * self.canvas_radius)).ceil() - 1.) * self.canvas_radius
     }
 
-    fn fill_tile(&mut self, canvas_centroid: &Point, tile: &Tile, color: &RGBColor) -> Result<(), String> {
+    fn canvas_op<'a, S: Spatial>(&'a mut self, all_bounds: &Vec<Bounds>, spatials: Vec<&S>, op: Box<dyn Fn(&mut Canvas<CanvasBackend>) -> Result<(), String> + 'a>) -> Result<(), String> {
+        for bounds in all_bounds.iter() {
+            for spatial in spatials.iter() {
+                if spatial.intersects(bounds) {
+                    self.operate_on_canvas(&bounds.center, &op)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn operate_on_canvas<'a>(&'a mut self, canvas_centroid: &Point, op: &Box<dyn Fn(&mut Canvas<CanvasBackend>) -> Result<(), String> + 'a>) -> Result<(), String> {
         let existing_canvas = self.canvases.get_mut(canvas_centroid);
         if let Some(canvas) = existing_canvas {
-            return canvas.fill_tile(tile, color);
+            return op(canvas);
         }
 
         let html_canvas_element = match get_new_canvas(&self.id, &self.canvas_radius, canvas_centroid) {
@@ -99,10 +110,21 @@ impl<State> Tiling<State> {
             None => return Err(String::from("could not get new HtmlCanvasElement")),
         };
 
-        self.canvases
+        let canvas = self.canvases
             .entry(canvas_centroid.clone())
-            .or_insert(Canvas::new(html_canvas_element, canvas_centroid.clone()))
-            .fill_tile(tile, color)
+            .or_insert_with(|| {
+                let center = canvas_centroid.clone();
+                let radius = html_canvas_element.width();
+                assert_eq!(radius, html_canvas_element.height());
+                Canvas {
+                    backend: CanvasBackend::with_canvas_object(html_canvas_element).unwrap(),
+                    bounds: Bounds {
+                        center,
+                        radius: radius as f64,
+                    },
+                }
+            });
+        op(canvas)
     }
 
     fn neighbor_centroids(&self, centroid: &Point) -> Vec<Point> {

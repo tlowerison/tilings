@@ -154,7 +154,6 @@ export const Canvas = (
       [handlers, handlerConverters],
     );
 
-    console.log(height, width);
     const style = useMemo(() => ({ height: `${height}px`, width: `${width}px` }), [height, width]);
 
     useEffect(

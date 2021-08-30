@@ -9,8 +9,5 @@ edition = "2018"
 geometry = { path = "../geometry" }
 plotters = "0.3.0"
 plotters-backend = "0.3.0"
-plotters-canvas = "0.3.0"
 pmr_quad_tree = { path = "../pmr_quad_tree" }
 tile = { path = "../tile" }
-wasm-bindgen = "0.2.74"
-web-sys = "0.3.51"

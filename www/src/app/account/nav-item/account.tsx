@@ -45,7 +45,6 @@ export const Account = ({ ref, clearAnchorEl }: NavItemProps) => {
               ref.current?.click?.();
               // @ts-ignore
               ref.current?.base?.click?.();
-              console.log(clearAnchorEl);
               clearAnchorEl?.();
             }}>
               <Item ref={ref} />

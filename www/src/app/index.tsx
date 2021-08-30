@@ -47,18 +47,3 @@ export const App = () => {
     </AccountContext.Provider>
   );
 };
-
-// @ts-ignore
-// global.client = Object.fromEntries(
-//   Object.entries(client)
-//     .map(([key, fn]: [string, Function]) => [
-//       key,
-//       async (...args) => {
-//         try {
-//           console.log(await fn(...args));
-//         } catch (err) {
-//           console.error(err);
-//         }
-//       },
-//     ])
-// );

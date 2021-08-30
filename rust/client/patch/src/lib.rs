@@ -2,7 +2,7 @@ use atlas::{Atlas, ProtoNeighbor, ProtoVertexStar};
 use common::*;
 use geometry::{Affine, Bounds, Euclid, Point, Spatial, Transform, Transformable};
 use itertools::izip;
-use pmr_quad_tree::{Config as TreeConfig, RcItem, Tree, WeakItem};
+use pmr_quad_tree::{Config as TreeConfig, Tree, WeakItem};
 use std::{
     collections::{HashMap, VecDeque},
     iter,
@@ -45,24 +45,33 @@ impl VertexStar {
         link_map.extend(link_vec.iter().enumerate().map(|(i, point)| (point.clone(), i)));
 
         let mut link_args_deque = link_vec.iter().map(|link_point| (link_point - &point).arg()).collect::<VecDeque<f64>>();
-        println!("{:?}", link_args_deque.iter().map(|la| fmt_float::<f64>(*la, 2)).collect::<Vec<String>>());
+
         let mut link_arg_offset = 0;
         for (i, (arg_0, arg_1)) in izip!(link_args_deque.iter().take(link_args_deque.len() - 1), link_args_deque.iter().skip(1)).enumerate() {
-            if arg_1 < arg_0 {
+            if (!parity && (arg_1 < arg_0)) || (parity && (arg_1 > arg_0)) {
                 link_args_deque.rotate_left(i + 1);
                 link_arg_offset = i + 1;
                 break
             }
         }
 
-        let wrapped_left_arg = link_args_deque.get(link_vec.len() - 1).unwrap() - TAU;
-        let wrapped_right_arg = link_args_deque.get(0).unwrap() + TAU;
+        let wrapped_min_arg = link_args_deque.get(link_vec.len() - 1).unwrap() - TAU;
+        let wrapped_max_arg = link_args_deque.get(0).unwrap() + TAU;
 
         let mut link_args: Vec<f64> = Vec::with_capacity(proto_vertex_star.size() + 2);
         link_args.extend(
-            iter::once(wrapped_left_arg)
-                .chain(link_args_deque.into_iter())
-                .chain(iter::once(wrapped_right_arg))
+            rev_iter(
+                parity,
+                if !parity {
+                    iter::once(wrapped_min_arg)
+                        .chain(link_args_deque.into_iter())
+                        .chain(iter::once(wrapped_max_arg))
+                } else {
+                    iter::once(wrapped_max_arg)
+                        .chain(link_args_deque.into_iter())
+                        .chain(iter::once(wrapped_min_arg))
+                }
+            ),
         );
 
         VertexStar {
@@ -78,10 +87,11 @@ impl VertexStar {
     }
 
     pub fn reference_frame(parity: bool, rotation: f64) -> Affine {
-        if !parity {
-            return Euclid::Rotate(rotation).as_affine()
+        let rotate = Euclid::Rotate(rotation);
+        match parity {
+            false => rotate.as_affine(),
+            true => Euclid::Flip(0.).transform(&rotate).as_affine(),
         }
-        Euclid::Flip(0.).transform(&Euclid::Rotate(rotation)).as_affine()
     }
 
     // get_clockwise_adjacent_link_index optionally returns the cyclically preceding Point of the given Point
@@ -146,18 +156,6 @@ impl VertexStar {
         Some(tile)
     }
 
-    // get_tile_centroid mirrors get_tile but only computes the tile's centroid point
-    pub fn get_tile_centroid(&self, atlas: &Atlas, neighbor_point: &Point) -> Option<Point> {
-        let proto_vertex_star = match self.get_proto_vertex_star(atlas) { None => return None, Some(pvs) => pvs };
-        let mut tile_index = match self.link_map.get(neighbor_point) { None => return None, Some(i) => *i };
-        if !self.parity {
-            tile_index = (tile_index + self.size() - 1) % self.size();
-        }
-        let tile = match proto_vertex_star.tiles.get(tile_index) { None => return None, Some(pt) => pt };
-        let reference_frame = VertexStar::reference_frame(self.parity, self.rotation);
-        Some(tile.centroid.transform(&reference_frame.transform(&Euclid::Translate(self.point.values()))))
-    }
-
     // mutual_parity returns the XOR value of this VertexStar's parity with the provided parity.
     // This is useful for computing a new, neighboring VertexStar's parity.
     pub fn mutual_parity(&self, parity: bool) -> bool {
@@ -168,30 +166,13 @@ impl VertexStar {
     // as well as the point in this vertex star which is counter-clockwise of that point
     pub fn nearest_neighbor<'a>(&'a self, atlas: &Atlas, point: &Point) -> Option<VertexStar> {
         let arg = (point - &self.point).arg();
+        let arg_insertion_index = match self.link_args.binary_search_by(|link_arg| link_arg.partial_cmp(&arg).unwrap()) { Ok(i) => i, Err(i) => i };
         let link_vec_index = (
-            match self.link_args.binary_search_by(|link_arg| link_arg.partial_cmp(&arg).unwrap()) { Ok(i) => i, Err(i) => i }
+            if !self.parity { arg_insertion_index } else { self.link_args.len() - arg_insertion_index - 1 }
             + self.size()
             + self.link_arg_offset
             - 1
         ) % self.size();
-
-        println!("{} {:?} : {} -> {}", fmt_float::<f64>(arg, 2), self.link_args.iter().map(|la| fmt_float::<f64>(*la, 2)).collect::<Vec<String>>(), match self.link_args.binary_search_by(|link_arg| link_arg.partial_cmp(&arg).unwrap()) { Ok(i) => i, Err(i) => i }, link_vec_index);
-        // println!("{:?}", self.link_vec);
-        // let closest_two = (self.link_args.get(link_vec_insert_index).unwrap(), self.link_args.get(link_vec_insert_index + 1).unwrap());
-
-        // let index = if arg - closest_two.0 < closest_two.1 - arg { index - 1 } else { index };
-        // let mut index = (index + self.link_arg_offset + self.size() - 1) % self.size();
-
-        // if Point::angle(self.link_vec.get(index).unwrap(), &self.point, point) >= PI {
-        //     index = (index + 1 + self.link_arg_offset + self.size() - 1) % self.size();
-        // }
-
-        // println!(
-        //     "{} {} {}",
-        //     self.link_vec.get((index + self.size() - 1) % self.size()).unwrap(),
-        //     self.link_vec.get((index + self.size() + 0) % self.size()).unwrap(),
-        //     self.link_vec.get((index + self.size() + 1) % self.size()).unwrap(),
-        // );
 
         self.get_neighbor_vertex_star(atlas, link_vec_index)
     }
@@ -209,9 +190,9 @@ impl Spatial for VertexStar {
 }
 
 #[derive(Debug)]
-pub enum TileDiff {
-    Added,
-    Removed,
+pub enum TileDiff<State> {
+    Added(WeakItem<Point, PatchTile<State>>),
+    Removed(WeakItem<Point, PatchTile<State>>),
 }
 
 #[derive(Debug)]
@@ -237,7 +218,7 @@ impl<State> Spatial for PatchTile<State> {
 #[derive(Debug)]
 pub struct Patch<State> {
     pub atlas: Atlas,
-    pub tile_diffs: HashMap<Point, (WeakItem<Point, PatchTile<State>>, TileDiff)>,
+    pub tile_diffs: HashMap<Point, TileDiff<State>>,
     pub vertex_stars: Tree<Point, VertexStar>,
     pub patch_tiles: Tree<Point, PatchTile<State>>,
 }
@@ -258,14 +239,8 @@ impl<State> Patch<State> {
         })
     }
 
-    pub fn drain_tile_diffs(&mut self) -> Vec<(RcItem<Point, PatchTile<State>>, TileDiff)> {
-        self.tile_diffs
-            .drain()
-            .filter_map(|(_, (patch_tile_weak_item, tile_diff))| patch_tile_weak_item
-                    .upgrade()
-                    .map(|patch_tile_rc_item| (patch_tile_rc_item, tile_diff))
-            )
-            .collect()
+    pub fn drain_tile_diffs(&mut self) -> Vec<(Point, TileDiff<State>)> {
+        self.tile_diffs.drain().collect()
     }
 
     pub fn insert_tile_by_point(&mut self, point: Point, state: Option<State>) -> Result<(), String> {
@@ -276,11 +251,7 @@ impl<State> Patch<State> {
             .upgrade()
             .ok_or("vertex star doesn't exist")?;
 
-        let mut count = 0;
-        loop {
-            if count == 100 {
-                return Err(format!("unable to add tile - too far"));
-            }
+        for _ in 0..100 {
             let next_vertex_star = nearest_vertex_star
                 .value()
                 .nearest_neighbor(&self.atlas, &point)
@@ -297,7 +268,9 @@ impl<State> Patch<State> {
                 return self.insert_adjacent_tile_by_edge(edge, state);
             } else {
                 self.insert_adjacent_tile_by_edge(edge, None)?;
-                self.vertex_stars.insert(next_vertex_star);
+                if !self.vertex_stars.has(&next_vertex_star.point) {
+                    self.vertex_stars.insert(next_vertex_star);
+                }
                 nearest_vertex_star = self.vertex_stars
                     .nearest_neighbor(&point)
                     .map_err(|e| format!("no nearby vertex stars:\n{}\n{:?}\n{:#?}", e, point, self.vertex_stars))?
@@ -305,8 +278,8 @@ impl<State> Patch<State> {
                     .upgrade()
                     .ok_or("vertex star doesn't exist")?;
             }
-            count += 1;
         }
+        Err(format!("unable to add tile - too far"))
     }
 
     pub fn get_tile_neighbor_centroids(&self, point: &Point) -> Option<Vec<Point>> {
@@ -355,7 +328,12 @@ impl<State> Patch<State> {
             if included {
                 if let None = &patch_tile_item.value().state {
                     self.patch_tiles.insert(PatchTile { tile, state });
-                    self.insert_in_tile_diffs(centroid, TileDiff::Added)?;
+                    self.insert_tile_diff(centroid, TileDiff::Added(
+                        self.patch_tiles
+                            .get(&centroid)
+                            .ok_or_else(|| String::from("unable to retrieve newly inserted tile"))?
+                            .downgrade()
+                    ))?;
                 }
             }
             return Ok(())
@@ -391,54 +369,69 @@ impl<State> Patch<State> {
         }
 
         if included {
-            self.insert_in_tile_diffs(centroid, TileDiff::Added)?;
+            self.insert_tile_diff(centroid, TileDiff::Added(
+                self.patch_tiles
+                    .get(&centroid)
+                    .ok_or_else(|| String::from("unable to retrieve newly inserted tile"))?
+                    .downgrade()
+            ))?;
         }
 
         Ok(())
     }
 
-    fn insert_in_tile_diffs(&mut self, centroid: Point, tile_diff: TileDiff) -> Result<(), String> {
-        let patch_tile_item = self.patch_tiles.get(&centroid).ok_or_else(|| "failed to get patch tile properly")?;
-        self.update_neighbors_after_new_tile_insert(&centroid).or_else(|_| Err(String::from("couldn't update neighbors")))?;
-        self.tile_diffs.insert(centroid, (patch_tile_item.downgrade(), tile_diff));
+    fn insert_tile_diff(&mut self, centroid: Point, tile_diff: TileDiff<State>) -> Result<(), String> {
+        if match tile_diff { TileDiff::Added(_) => true, TileDiff::Removed(_) => true } {
+            self.update_neighbors_after_tile_diff(&centroid, &tile_diff).or_else(|e| Err(format!("couldn't update neighbors: {}", e)))?;
+        }
+        self.tile_diffs.insert(centroid, tile_diff);
         Ok(())
     }
 
-    fn update_neighbors_after_new_tile_insert(&mut self, tile_centroid: &Point) -> Result<(), ()> {
-        let mut rc_item = self.patch_tiles.get(tile_centroid).ok_or_else(|| ())?;
+    fn update_neighbors_after_tile_diff(&mut self, tile_centroid: &Point, tile_diff: &TileDiff<State>) -> Result<(), String> {
+        let mut rc_item = self.patch_tiles.get(tile_centroid).ok_or_else(|| String::from("couldn't get patch tile"))?;
 
         let neighbor_centroids: Vec<Result<Point, String>> = {
             let value = rc_item.value();
             Point::edges(&value.tile.points)
                 .into_iter()
-                .map(|edge| {
+                .filter_map(|edge| {
                     if let Some(vertex_star_rc) = self.vertex_stars.get(edge.0) {
                         let vertex_star = vertex_star_rc.value();
-                        if let Some(centroid) = vertex_star.get_tile_centroid(&self.atlas, edge.1) {
-                            return Ok(centroid)
+                        if let Some(tile) = vertex_star.get_tile(&self.atlas, edge.1) {
+                            if tile.centroid != *tile_centroid {
+                                return Some(Ok(tile.centroid))
+                            }
+                            return None
                         } else {
-                            return Err(String::from("b"))
+                            return Some(Err(format!("couldn't get tile centroid of vertex star at {} along edge {}", vertex_star.point, edge.1)))
                         }
                     } else {
-                        return Err(format!("{}", edge.0))
+                        return Some(Err(format!("couldn't get vertex star along edge {}", edge.0)))
                     }
                 })
                 .collect()
         };
 
-        let mut item_neighbors = rc_item.neighbors_mut().map_err(|_| ())?;
+        let mut item_neighbors = rc_item.neighbors_mut().map_err(|_| String::from("couldn't access mutable ref of patch tile"))?;
 
         for centroid in neighbor_centroids.into_iter() {
-            if let Ok(centroid) = centroid {
-                if let Some(mut neighbor_rc_item) = self.patch_tiles.get(&centroid) {
-                    item_neighbors.insert(centroid, neighbor_rc_item.downgrade());
+            let centroid = centroid?;
+            if let Some(mut neighbor_rc_item) = self.patch_tiles.get(&centroid) {
+                // update tile's neighbors
+                match tile_diff {
+                    TileDiff::Added(_) => item_neighbors.insert(centroid, neighbor_rc_item.downgrade()),
+                    TileDiff::Removed(_) => item_neighbors.remove(&centroid),
+                };
 
-                    let rc_item = self.patch_tiles.get(tile_centroid).ok_or_else(|| ())?;
-                    let mut neighbor_item_neighbors = neighbor_rc_item.neighbors_mut().map_err(|_| ())?;
-                    neighbor_item_neighbors.insert(rc_item.value().tile.centroid.clone(), rc_item.downgrade());
-                }
-            } else {
-                return Err(())
+                let rc_item = self.patch_tiles.get(tile_centroid).ok_or_else(|| format!("couldn't get neighbor's tile at {}", tile_centroid))?;
+                let mut neighbor_item_neighbors = neighbor_rc_item.neighbors_mut().map_err(|_| format!("couldn't get mutable ref to neighbor at {}", tile_centroid))?;
+
+                // update tile's neighbor's neighbors with updated tile
+                match tile_diff {
+                    TileDiff::Added(_) => neighbor_item_neighbors.insert(rc_item.value().tile.centroid.clone(), rc_item.downgrade()),
+                    TileDiff::Removed(_) => neighbor_item_neighbors.remove(&rc_item.value().tile.centroid),
+                };
             }
         }
         Ok(())
@@ -1946,7 +1939,7 @@ mod tests {
     }
 
     #[test]
-    // by link refers to asserting that all of a vertex star's neighbors (i.e. the vertex star's link) are correctly configured
+    // "by_link" refers to asserting that all of a vertex star's neighbors (i.e. the vertex star's link) are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_link() {
         let [
             atlas_4_4_4_4,
@@ -2018,7 +2011,7 @@ mod tests {
     }
 
     #[test]
-    // by chain refers to asserting that a sequence of vertex stars, the next accumulated as a neighbor of the previous star, are correctly configured
+    // "by_sequence" refers to asserting that a sequence of vertex stars, the next accumulated as a neighbor of the previous star, are correctly configured
     fn test_vertex_star_get_neighbor_vertex_star_by_sequence() {
         let [
             atlas_4_4_4_4,

@@ -441,11 +441,8 @@ dependencies = [
  "geometry",
  "plotters",
  "plotters-backend",
- "plotters-canvas",
  "pmr_quad_tree",
  "tile",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -583,6 +580,7 @@ dependencies = [
 name = "console"
 version = "0.1.0"
 dependencies = [
+ "cfg-if 1.0.0",
  "wasm-bindgen",
 ]
 
@@ -2909,9 +2907,11 @@ version = "0.1.0"
 dependencies = [
  "atlas",
  "canvas",
+ "console",
  "geometry",
  "patch",
  "plotters",
+ "plotters-canvas",
  "pmr_quad_tree",
  "tile",
  "wasm-bindgen",
